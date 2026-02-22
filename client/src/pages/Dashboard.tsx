@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Building2, Send, Loader2, LogOut, MessageSquare, History,
   Crown, User, ChevronRight, Sparkles, AlertCircle, FileImage,
-  ClipboardList, Calculator,
+  ClipboardList, Calculator, Banknote,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -22,6 +22,7 @@ import {
 import BlueprintAnalysis from "./BlueprintAnalysis";
 import PermitChecklist from "./PermitChecklist";
 import CostEstimator from "./CostEstimator";
+import TeeCalculator from "./TeeCalculator";
 
 interface Question {
   id: string;
@@ -30,7 +31,7 @@ interface Question {
   createdAt: string;
 }
 
-type View = "chat" | "blueprint" | "checklist" | "estimator" | "history";
+type View = "chat" | "blueprint" | "checklist" | "estimator" | "tee" | "history";
 
 const EXAMPLE_QUESTIONS = [
   "Ποια είναι η διαδικασία έκδοσης οικοδομικής άδειας για νέα κατοικία;",
@@ -59,6 +60,7 @@ const NAV_ITEMS: { view: View; icon: typeof MessageSquare; label: string }[] = [
   { view: "blueprint", icon: FileImage, label: "Σχέδια & Κατόψεις" },
   { view: "checklist", icon: ClipboardList, label: "Λίστα Δικαιολογητικών" },
   { view: "estimator", icon: Calculator, label: "Εκτίμηση Κόστους" },
+  { view: "tee", icon: Banknote, label: "Αμοιβές ΤΕΕ" },
   { view: "history", icon: History, label: "Ιστορικό" },
 ];
 
@@ -369,6 +371,13 @@ export default function Dashboard() {
           {activeView === "estimator" && (
             <div className="flex-1 min-h-0 overflow-auto">
               <CostEstimator />
+            </div>
+          )}
+
+          {/* ── TEE Fee Calculator ── */}
+          {activeView === "tee" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <TeeCalculator />
             </div>
           )}
 
