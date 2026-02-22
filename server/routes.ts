@@ -18,7 +18,13 @@ declare module "express-session" {
   }
 }
 
-const FREE_MONTHLY_LIMIT = 10;
+const PLAN_LIMITS: Record<string, number | null> = {
+  free: 10,
+  starter: 50,
+  professional: 200,
+  unlimited: null,
+  pro: null,
+};
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -51,7 +57,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   async function checkAndIncrementUsage(userId: string, res: Response): Promise<boolean> {
     const user = await storage.getUser(userId);
     if (!user) { res.status(401).json({ error: "Χρήστης δεν βρέθηκε" }); return false; }
-    if (user.plan !== "free") {
+    const limit = PLAN_LIMITS[user.plan] ?? null;
+    if (limit === null) {
       await storage.incrementUsageCount(userId);
       return true;
     }
@@ -59,9 +66,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const lastReset = new Date(user.lastResetDate);
     const sameMonth = now.getMonth() === lastReset.getMonth() && now.getFullYear() === lastReset.getFullYear();
     const currentCount = sameMonth ? user.usesThisMonth : 0;
-    if (currentCount >= FREE_MONTHLY_LIMIT) {
+    if (currentCount >= limit) {
+      const planNames: Record<string, string> = { free: "Δωρεάν", starter: "Starter", professional: "Professional" };
       res.status(403).json({
-        error: `Έχετε εξαντλήσει το μηνιαίο όριο των ${FREE_MONTHLY_LIMIT} χρήσεων. Αναβαθμίστε σε Pro για απεριόριστη πρόσβαση σε όλα τα εργαλεία.`,
+        error: `Έχετε εξαντλήσει το μηνιαίο όριο των ${limit} χρήσεων (πλάνο ${planNames[user.plan] || user.plan}). Αναβαθμίστε για περισσότερες χρήσεις.`,
         limitReached: true,
       });
       return false;
@@ -318,7 +326,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ── Subscription ──────────────────────────────────────────────────────
   app.post("/api/subscription/upgrade", requireAuth, async (req, res) => {
-    const user = await storage.updateUserPlan(req.session.userId!, "pro");
+    const { plan } = req.body;
+    const validPlans = ["starter", "professional", "unlimited"];
+    if (!validPlans.includes(plan)) {
+      return res.status(400).json({ error: "Μη έγκυρο πλάνο" });
+    }
+    const user = await storage.updateUserPlan(req.session.userId!, plan);
     const { password: _, ...safeUser } = user;
     res.json({ user: safeUser });
   });
