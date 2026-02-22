@@ -5,7 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import { storage } from "./storage";
-import { askClaude, analyzeBlueprintImage, analyzeBlueprintPDF, generatePermitChecklist } from "./anthropic";
+import { askClaude, analyzeBlueprintImage, analyzeBlueprintPDF, generatePermitChecklist, generateTechnicalReport } from "./anthropic";
 import { insertUserSchema, loginSchema, insertQuestionSchema, insertProjectSchema, insertProjectNoteSchema } from "@shared/schema";
 import { ZodError, z } from "zod";
 import { Pool } from "pg";
@@ -262,6 +262,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: "Σφάλμα κατά τη διαγραφή σημείωσης" });
+    }
+  });
+
+  // ── Technical Reports ──────────────────────────────────────────────────
+  app.post("/api/reports/generate", requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        reportType: z.string().min(1),
+        address: z.string().min(1),
+        area: z.string().min(1),
+        floors: z.string().min(1),
+        constructionYear: z.string().min(1),
+        ownerName: z.string().min(1),
+        engineerName: z.string().min(1),
+        engineerSpecialty: z.string().min(1),
+        teeNumber: z.string().min(1),
+        specialNotes: z.string().default(""),
+        reportDate: z.string().min(1),
+      });
+      const params = schema.parse(req.body);
+      const report = await generateTechnicalReport(params);
+      res.json({ report });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
+      res.status(500).json({ error: "Σφάλμα κατά τη δημιουργία της έκθεσης" });
     }
   });
 
