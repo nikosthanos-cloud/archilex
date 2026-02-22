@@ -12,7 +12,7 @@ import {
 import {
   Building2, Send, Loader2, LogOut, MessageSquare, History,
   Crown, User, ChevronRight, Sparkles, AlertCircle, FileImage,
-  ClipboardList, Calculator, Banknote, FolderKanban, ScrollText, CheckCircle,
+  ClipboardList, Calculator, Banknote, FolderKanban, ScrollText, CheckCircle, UserCog,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,6 +28,7 @@ import CostEstimator from "./CostEstimator";
 import TeeCalculator from "./TeeCalculator";
 import Projects from "./Projects";
 import TechnicalReports from "./TechnicalReports";
+import ProfileSettings from "./ProfileSettings";
 
 interface Question {
   id: string;
@@ -36,7 +37,7 @@ interface Question {
   createdAt: string;
 }
 
-type View = "chat" | "blueprint" | "checklist" | "estimator" | "tee" | "projects" | "reports" | "history";
+type View = "chat" | "blueprint" | "checklist" | "estimator" | "tee" | "projects" | "reports" | "history" | "profile";
 
 const EXAMPLE_QUESTIONS = [
   "Ποια είναι η διαδικασία έκδοσης οικοδομικής άδειας για νέα κατοικία;",
@@ -69,6 +70,7 @@ const NAV_ITEMS: { view: View; icon: typeof MessageSquare; label: string }[] = [
   { view: "projects", icon: FolderKanban, label: "Έργα" },
   { view: "reports", icon: ScrollText, label: "Τεχνικές Εκθέσεις" },
   { view: "history", icon: History, label: "Ιστορικό" },
+  { view: "profile", icon: UserCog, label: "Προφίλ" },
 ];
 
 const PLAN_LIMITS: Record<string, number | null> = {
@@ -460,6 +462,13 @@ export default function Dashboard() {
           {activeView === "reports" && (
             <div className="flex-1 min-h-0 overflow-hidden p-4">
               <TechnicalReports />
+            </div>
+          )}
+
+          {/* ── Profile Settings ── */}
+          {activeView === "profile" && (
+            <div className="flex-1 min-h-0 overflow-auto">
+              <ProfileSettings />
             </div>
           )}
 

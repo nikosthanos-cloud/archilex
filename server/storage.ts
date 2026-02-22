@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, questions, uploads, projects, projectNotes,
-  type User, type InsertUser, type Question, type Upload,
+  type User, type InsertUser, type UpdateProfile, type Question, type Upload,
   type Project, type InsertProject, type ProjectNote,
 } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
@@ -11,6 +11,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser & { password: string }): Promise<User>;
   updateUserPlan(id: string, plan: string): Promise<User>;
+  updateUserProfile(id: string, data: UpdateProfile): Promise<User>;
   incrementUsageCount(id: string): Promise<User>;
   resetMonthlyUsage(id: string): Promise<User>;
   createQuestion(userId: string, question: string, answer: string): Promise<Question>;
@@ -45,6 +46,24 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPlan(id: string, plan: string): Promise<User> {
     const result = await db.update(users).set({ plan }).where(eq(users.id, id)).returning();
+    return result[0];
+  }
+
+  async updateUserProfile(id: string, data: UpdateProfile): Promise<User> {
+    const fullName = `${data.firstName} ${data.lastName}`.trim();
+    const result = await db.update(users)
+      .set({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        fullName,
+        email: data.email,
+        phone: data.phone || null,
+        officeAddress: data.officeAddress || null,
+        teeNumber: data.teeNumber || null,
+        specialty: data.specialty || null,
+      })
+      .where(eq(users.id, id))
+      .returning();
     return result[0];
   }
 

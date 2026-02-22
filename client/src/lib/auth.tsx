@@ -12,6 +12,12 @@ interface User {
   usesThisMonth: number;
   lastResetDate: string;
   createdAt: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  officeAddress: string | null;
+  teeNumber: string | null;
+  specialty: string | null;
 }
 
 interface AuthContextType {

@@ -13,6 +13,12 @@ export const users = pgTable("users", {
   usesThisMonth: integer("questions_used_this_month").notNull().default(0),
   lastResetDate: timestamp("last_reset_date").notNull().default(sql`now()`),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  phone: text("phone"),
+  officeAddress: text("office_address"),
+  teeNumber: text("tee_number"),
+  specialty: text("specialty"),
 });
 
 export const questions = pgTable("questions", {
@@ -38,6 +44,16 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const loginSchema = z.object({
   email: z.string().email("Μη έγκυρο email"),
   password: z.string().min(1, "Εισάγετε τον κωδικό σας"),
+});
+
+export const updateProfileSchema = z.object({
+  firstName: z.string().min(1, "Εισάγετε το όνομά σας"),
+  lastName: z.string().min(1, "Εισάγετε το επώνυμό σας"),
+  email: z.string().email("Μη έγκυρο email"),
+  phone: z.string().optional().default(""),
+  officeAddress: z.string().optional().default(""),
+  teeNumber: z.string().optional().default(""),
+  specialty: z.string().optional().default(""),
 });
 
 export const uploads = pgTable("uploads", {
@@ -91,6 +107,7 @@ export const insertProjectNoteSchema = z.object({
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type User = typeof users.$inferSelect;
 export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;

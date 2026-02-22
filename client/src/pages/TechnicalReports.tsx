@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -137,7 +137,7 @@ function buildDocxParagraphs(text: string) {
 
 export default function TechnicalReports() {
   const { toast } = useToast();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [reportType, setReportType] = useState("");
@@ -152,6 +152,18 @@ export default function TechnicalReports() {
   const [specialNotes, setSpecialNotes] = useState("");
   const [reportDate, setReportDate] = useState(todayISO());
   const [generatedReport, setGeneratedReport] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      if (user.firstName || user.lastName) {
+        setEngineerName(`${user.firstName ?? ""} ${user.lastName ?? ""}`.trim());
+      } else if (user.fullName) {
+        setEngineerName(user.fullName);
+      }
+      if (user.teeNumber) setTeeNumber(user.teeNumber);
+      if (user.specialty) setEngineerSpecialty(user.specialty);
+    }
+  }, [user]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {

@@ -16,6 +16,7 @@ ArchiLex is a full-stack web application for Greek architects and engineers. It 
 - **Technical Reports (Τεχνικές Εκθέσεις)** — AI-generated professional technical reports (Architectural Description, Static Study Summary, Energy Inspection, Unauthorized Construction Assessment) with PDF and Word export
 - **Project Tracker (Έργα)** — Full project management for building permit tracking: create projects, advance through 5 permit stages, add per-project notes, set deadline reminders, colored status badges
 - **Question History** — Full history of all past AI questions and answers
+- **Profile Settings (Προφίλ)** — Users can edit their personal info (first/last name, email, phone, office address, TEE registration number, specialty); saved values auto-fill engineer fields in Technical Reports and TEE Calculator PDF
 - **Greek Language** — Full app UI and all responses in Greek
 
 ## Tech Stack

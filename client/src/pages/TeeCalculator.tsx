@@ -138,7 +138,13 @@ function fmt(n: number): string {
   return n.toLocaleString("el-GR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function buildPdfHtml(result: FeeResult, generatedDate: string): string {
+interface EngineerInfo {
+  name: string;
+  teeNumber: string;
+  specialty: string;
+}
+
+function buildPdfHtml(result: FeeResult, generatedDate: string, engineer?: EngineerInfo): string {
   const includedStudies = result.studies.filter((s) => s.included);
   const rows = includedStudies.map((s) => `
     <tr>
@@ -253,6 +259,16 @@ function buildPdfHtml(result: FeeResult, generatedDate: string): string {
     Πολλαπλαστής τύπου έργου: ×${result.typeMultiplier.toFixed(2)} (${result.projectType}).
   </div>
 
+  ${engineer && (engineer.name || engineer.teeNumber || engineer.specialty) ? `
+  <div class="info-box" style="margin-top:14px;">
+    <div class="info-title">Στοιχεία Μηχανικού</div>
+    <div class="info-grid" style="grid-template-columns: repeat(3, 1fr);">
+      ${engineer.name ? `<div><div class="info-label">Ονοματεπώνυμο</div><div class="info-value">${engineer.name}</div></div>` : ""}
+      ${engineer.specialty ? `<div><div class="info-label">Ειδικότητα</div><div class="info-value">${engineer.specialty}</div></div>` : ""}
+      ${engineer.teeNumber ? `<div><div class="info-label">Αρ. Μητρώου ΤΕΕ</div><div class="info-value">${engineer.teeNumber}</div></div>` : ""}
+    </div>
+  </div>` : ""}
+
   <div class="footer">
     <div><span class="footer-logo">ArchiLex</span> — Υπολογισμός Αμοιβών ΤΕΕ</div>
     <div>archilexapp.com · Παραγωγή: ${generatedDate}</div>
@@ -308,7 +324,12 @@ export default function TeeCalculator() {
     setExporting(true);
     try {
       const generatedDate = new Date().toLocaleDateString("el-GR", { day: "numeric", month: "long", year: "numeric" });
-      const htmlContent = buildPdfHtml(result, generatedDate);
+      const engineerInfo: EngineerInfo = {
+        name: user ? (user.firstName || user.lastName ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : user.fullName) : "",
+        teeNumber: user?.teeNumber ?? "",
+        specialty: user?.specialty ?? "",
+      };
+      const htmlContent = buildPdfHtml(result, generatedDate, engineerInfo);
 
       const container = document.createElement("div");
       container.innerHTML = htmlContent;

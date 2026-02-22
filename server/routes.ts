@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import { storage } from "./storage";
 import { askClaude, analyzeBlueprintImage, analyzeBlueprintPDF, generatePermitChecklist, generateTechnicalReport } from "./anthropic";
-import { insertUserSchema, loginSchema, insertQuestionSchema, insertProjectSchema, insertProjectNoteSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertQuestionSchema, insertProjectSchema, insertProjectNoteSchema, updateProfileSchema } from "@shared/schema";
 import { ZodError, z } from "zod";
 import { Pool } from "pg";
 
@@ -125,6 +125,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!user) { req.session.destroy(() => {}); return res.status(401).json({ error: "Χρήστης δεν βρέθηκε" }); }
     const { password: _, ...safeUser } = user;
     res.json({ user: safeUser });
+  });
+
+  // ── Profile ───────────────────────────────────────────────────────────
+  app.patch("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const data = updateProfileSchema.parse(req.body);
+      const existing = await storage.getUserByEmail(data.email);
+      if (existing && existing.id !== req.session.userId) {
+        return res.status(400).json({ error: "Το email χρησιμοποιείται ήδη από άλλο λογαριασμό" });
+      }
+      const user = await storage.updateUserProfile(req.session.userId!, data);
+      const { password: _, ...safeUser } = user;
+      res.json({ user: safeUser });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
+      console.error(err);
+      res.status(500).json({ error: "Σφάλμα κατά την ενημέρωση του προφίλ" });
+    }
   });
 
   // ── AI Questions ──────────────────────────────────────────────────────
