@@ -492,24 +492,24 @@ export default function PermitChecklist() {
 
   return (
     <div className="flex h-full min-h-0 gap-4 p-4">
-      <div className="w-80 shrink-0 flex flex-col gap-3">
+      <div className="w-72 shrink-0 overflow-y-auto">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Στοιχεία Έργου</CardTitle>
-            <CardDescription className="text-xs">Συμπληρώστε τα στοιχεία για εξατομικευμένη λίστα</CardDescription>
+          <CardHeader className="pb-2 pt-3 px-3">
+            <CardTitle className="text-sm">Στοιχεία Έργου</CardTitle>
+            <CardDescription className="text-xs leading-tight">Συμπληρώστε τα στοιχεία για εξατομικευμένη λίστα</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 pb-3">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
                 <FormField
                   control={form.control}
                   name="projectType"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Τύπος Έργου</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-[11px] leading-none">Τύπος Έργου</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger className="h-8 text-xs" data-testid="select-projectType">
+                          <SelectTrigger className="h-7 text-xs" data-testid="select-projectType">
                             <SelectValue placeholder="Επιλέξτε..." />
                           </SelectTrigger>
                         </FormControl>
@@ -532,11 +532,11 @@ export default function PermitChecklist() {
                   control={form.control}
                   name="useType"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Χρήση</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-[11px] leading-none">Χρήση</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger className="h-8 text-xs" data-testid="select-useType">
+                          <SelectTrigger className="h-7 text-xs" data-testid="select-useType">
                             <SelectValue placeholder="Επιλέξτε..." />
                           </SelectTrigger>
                         </FormControl>
@@ -559,10 +559,10 @@ export default function PermitChecklist() {
                   control={form.control}
                   name="location"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Τοποθεσία / Δήμος</FormLabel>
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-[11px] leading-none">Τοποθεσία / Δήμος</FormLabel>
                       <FormControl>
-                        <Input placeholder="π.χ. Αθήνα, Θεσσαλονίκη..." className="h-8 text-xs" data-testid="input-location" {...field} />
+                        <Input placeholder="π.χ. Αθήνα, Θεσσαλονίκη..." className="h-7 text-xs" data-testid="input-location" {...field} />
                       </FormControl>
                       <FormMessage className="text-xs" />
                     </FormItem>
@@ -574,10 +574,10 @@ export default function PermitChecklist() {
                     control={form.control}
                     name="area"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Εμβαδόν (τ.μ.)</FormLabel>
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-[11px] leading-none">Εμβαδόν (τ.μ.)</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="150" className="h-8 text-xs" data-testid="input-area" {...field} />
+                          <Input type="number" placeholder="150" className="h-7 text-xs" data-testid="input-area" {...field} />
                         </FormControl>
                         <FormMessage className="text-xs" />
                       </FormItem>
@@ -587,10 +587,10 @@ export default function PermitChecklist() {
                     control={form.control}
                     name="floors"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Όροφοι</FormLabel>
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-[11px] leading-none">Όροφοι</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="2" className="h-8 text-xs" data-testid="input-floors" {...field} />
+                          <Input type="number" placeholder="2" className="h-7 text-xs" data-testid="input-floors" {...field} />
                         </FormControl>
                         <FormMessage className="text-xs" />
                       </FormItem>
@@ -598,7 +598,7 @@ export default function PermitChecklist() {
                   />
                 </div>
 
-                <div className="space-y-2 pt-1">
+                <div className="space-y-0.5 pt-0.5 border-t border-border">
                   {[
                     { name: "isNew" as const, label: "Νέα κατασκευή" },
                     { name: "hasBasement" as const, label: "Υπόγειο" },
@@ -611,10 +611,10 @@ export default function PermitChecklist() {
                       control={form.control}
                       name={item.name}
                       render={({ field }) => (
-                        <FormItem className="flex items-center justify-between">
-                          <FormLabel className="text-xs font-normal cursor-pointer">{item.label}</FormLabel>
+                        <FormItem className="flex items-center justify-between py-1">
+                          <FormLabel className="text-[11px] font-normal cursor-pointer leading-tight">{item.label}</FormLabel>
                           <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} data-testid={`switch-${item.name}`} />
+                            <Switch checked={field.value} onCheckedChange={field.onChange} data-testid={`switch-${item.name}`} className="scale-90" />
                           </FormControl>
                         </FormItem>
                       )}
@@ -622,8 +622,8 @@ export default function PermitChecklist() {
                   ))}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading} data-testid="button-generate-checklist">
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ClipboardList className="w-4 h-4 mr-2" />}
+                <Button type="submit" size="sm" className="w-full" disabled={loading} data-testid="button-generate-checklist">
+                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <ClipboardList className="w-3.5 h-3.5 mr-2" />}
                   Δημιουργία Λίστας
                 </Button>
               </form>
