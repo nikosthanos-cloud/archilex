@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Building2, Send, Loader2, LogOut, MessageSquare, History,
   Crown, User, ChevronRight, Sparkles, AlertCircle, FileImage,
-  ClipboardList, Calculator, Banknote,
+  ClipboardList, Calculator, Banknote, FolderKanban,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -23,6 +23,7 @@ import BlueprintAnalysis from "./BlueprintAnalysis";
 import PermitChecklist from "./PermitChecklist";
 import CostEstimator from "./CostEstimator";
 import TeeCalculator from "./TeeCalculator";
+import Projects from "./Projects";
 
 interface Question {
   id: string;
@@ -31,7 +32,7 @@ interface Question {
   createdAt: string;
 }
 
-type View = "chat" | "blueprint" | "checklist" | "estimator" | "tee" | "history";
+type View = "chat" | "blueprint" | "checklist" | "estimator" | "tee" | "projects" | "history";
 
 const EXAMPLE_QUESTIONS = [
   "Ποια είναι η διαδικασία έκδοσης οικοδομικής άδειας για νέα κατοικία;",
@@ -61,6 +62,7 @@ const NAV_ITEMS: { view: View; icon: typeof MessageSquare; label: string }[] = [
   { view: "checklist", icon: ClipboardList, label: "Λίστα Δικαιολογητικών" },
   { view: "estimator", icon: Calculator, label: "Εκτίμηση Κόστους" },
   { view: "tee", icon: Banknote, label: "Αμοιβές ΤΕΕ" },
+  { view: "projects", icon: FolderKanban, label: "Έργα" },
   { view: "history", icon: History, label: "Ιστορικό" },
 ];
 
@@ -378,6 +380,13 @@ export default function Dashboard() {
           {activeView === "tee" && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <TeeCalculator />
+            </div>
+          )}
+
+          {/* ── Projects ── */}
+          {activeView === "projects" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <Projects />
             </div>
           )}
 

@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import { storage } from "./storage";
 import { askClaude, analyzeBlueprintImage, analyzeBlueprintPDF, generatePermitChecklist } from "./anthropic";
-import { insertUserSchema, loginSchema, insertQuestionSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, insertQuestionSchema, insertProjectSchema, insertProjectNoteSchema } from "@shared/schema";
 import { ZodError, z } from "zod";
 import { Pool } from "pg";
 
@@ -188,6 +188,80 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
       console.error(err);
       res.status(500).json({ error: "Σφάλμα κατά τη δημιουργία λίστας" });
+    }
+  });
+
+  // ── Projects ──────────────────────────────────────────────────────────
+  app.get("/api/projects", requireAuth, async (req, res) => {
+    const userProjects = await storage.getUserProjects(req.session.userId!);
+    res.json({ projects: userProjects });
+  });
+
+  app.post("/api/projects", requireAuth, async (req, res) => {
+    try {
+      const data = insertProjectSchema.parse(req.body);
+      const project = await storage.createProject(req.session.userId!, data);
+      res.json({ project });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
+      res.status(500).json({ error: "Σφάλμα κατά τη δημιουργία έργου" });
+    }
+  });
+
+  app.patch("/api/projects/:id", requireAuth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const project = await storage.getProject(id, req.session.userId!);
+      if (!project) return res.status(404).json({ error: "Το έργο δεν βρέθηκε" });
+      const data = insertProjectSchema.partial().parse(req.body);
+      const updated = await storage.updateProject(id, req.session.userId!, data);
+      res.json({ project: updated });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
+      res.status(500).json({ error: "Σφάλμα κατά την ενημέρωση έργου" });
+    }
+  });
+
+  app.delete("/api/projects/:id", requireAuth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const project = await storage.getProject(id, req.session.userId!);
+      if (!project) return res.status(404).json({ error: "Το έργο δεν βρέθηκε" });
+      await storage.deleteProject(id, req.session.userId!);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά τη διαγραφή έργου" });
+    }
+  });
+
+  app.get("/api/projects/:id/notes", requireAuth, async (req, res) => {
+    const id = String(req.params.id);
+    const project = await storage.getProject(id, req.session.userId!);
+    if (!project) return res.status(404).json({ error: "Το έργο δεν βρέθηκε" });
+    const notes = await storage.getProjectNotes(id, req.session.userId!);
+    res.json({ notes });
+  });
+
+  app.post("/api/projects/:id/notes", requireAuth, async (req, res) => {
+    try {
+      const id = String(req.params.id);
+      const project = await storage.getProject(id, req.session.userId!);
+      if (!project) return res.status(404).json({ error: "Το έργο δεν βρέθηκε" });
+      const { content } = insertProjectNoteSchema.parse(req.body);
+      const note = await storage.addProjectNote(id, req.session.userId!, content);
+      res.json({ note });
+    } catch (err) {
+      if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
+      res.status(500).json({ error: "Σφάλμα κατά την προσθήκη σημείωσης" });
+    }
+  });
+
+  app.delete("/api/projects/:id/notes/:noteId", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteProjectNote(String(req.params.noteId), req.session.userId!);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά τη διαγραφή σημείωσης" });
     }
   });
 
