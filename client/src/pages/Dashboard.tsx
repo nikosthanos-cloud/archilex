@@ -7,36 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Building2,
-  Send,
-  Loader2,
-  LogOut,
-  MessageSquare,
-  History,
-  Crown,
-  User,
-  ChevronRight,
-  Sparkles,
-  AlertCircle,
+  Building2, Send, Loader2, LogOut, MessageSquare, History,
+  Crown, User, ChevronRight, Sparkles, AlertCircle, FileImage,
+  ClipboardList, Calculator,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarTrigger,
-  SidebarFooter,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton,
+  SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarFooter,
 } from "@/components/ui/sidebar";
+import BlueprintAnalysis from "./BlueprintAnalysis";
+import PermitChecklist from "./PermitChecklist";
+import CostEstimator from "./CostEstimator";
 
 interface Question {
   id: string;
@@ -44,6 +29,8 @@ interface Question {
   answer: string;
   createdAt: string;
 }
+
+type View = "chat" | "blueprint" | "checklist" | "estimator" | "history";
 
 const EXAMPLE_QUESTIONS = [
   "Ποια είναι η διαδικασία έκδοσης οικοδομικής άδειας για νέα κατοικία;",
@@ -62,20 +49,25 @@ const professionLabels: Record<string, string> = {
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("el-GR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
   });
 }
+
+const NAV_ITEMS: { view: View; icon: typeof MessageSquare; label: string }[] = [
+  { view: "chat", icon: MessageSquare, label: "AI Βοηθός" },
+  { view: "blueprint", icon: FileImage, label: "Σχέδια & Κατόψεις" },
+  { view: "checklist", icon: ClipboardList, label: "Λίστα Δικαιολογητικών" },
+  { view: "estimator", icon: Calculator, label: "Εκτίμηση Κόστους" },
+  { view: "history", icon: History, label: "Ιστορικό" },
+];
 
 export default function Dashboard() {
   const { user, logout, refreshUser } = useAuth();
   const { toast } = useToast();
   const [question, setQuestion] = useState("");
-  const [activeView, setActiveView] = useState<"chat" | "history">("chat");
-  const [currentMessages, setCurrentMessages] = useState<{ role: "user" | "ai"; text: string; time?: string }[]>([]);
+  const [activeView, setActiveView] = useState<View>("chat");
+  const [currentMessages, setCurrentMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: historyData, isLoading: historyLoading } = useQuery<{ questions: Question[] }>({
@@ -90,22 +82,13 @@ export default function Dashboard() {
       return data.question as Question;
     },
     onSuccess: (q) => {
-      setCurrentMessages((prev) => [
-        ...prev,
-        { role: "ai", text: q.answer, time: q.createdAt },
-      ]);
+      setCurrentMessages((prev) => [...prev, { role: "ai", text: q.answer }]);
       queryClient.invalidateQueries({ queryKey: ["/api/questions/history"] });
       refreshUser();
     },
     onError: (err: any) => {
       if (err.limitReached) {
-        setCurrentMessages((prev) => [
-          ...prev,
-          {
-            role: "ai",
-            text: "⚠️ " + (err.message || "Έχετε εξαντλήσει το μηνιαίο όριο ερωτήσεων. Αναβαθμίστε σε Pro για απεριόριστες ερωτήσεις."),
-          },
-        ]);
+        setCurrentMessages((prev) => [...prev, { role: "ai", text: "LIMIT:" + err.message }]);
       } else {
         toast({ title: "Σφάλμα", description: err.message, variant: "destructive" });
       }
@@ -138,24 +121,14 @@ export default function Dashboard() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  const questionsLeft =
-    user?.plan === "free"
-      ? Math.max(0, 5 - (user?.questionsUsedThisMonth || 0))
-      : null;
-
-  const sidebarStyle = {
-    "--sidebar-width": "18rem",
-    "--sidebar-width-icon": "3.5rem",
-  };
+  const questionsLeft = user?.plan === "free" ? Math.max(0, 5 - (user?.questionsUsedThisMonth || 0)) : null;
+  const activeNavLabel = NAV_ITEMS.find((n) => n.view === activeView)?.label || "";
 
   return (
-    <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+    <SidebarProvider style={{ "--sidebar-width": "17rem", "--sidebar-width-icon": "3.5rem" } as React.CSSProperties}>
       <div className="flex h-screen w-full bg-background">
         <Sidebar>
           <SidebarHeader className="p-4">
@@ -169,31 +142,21 @@ export default function Dashboard() {
 
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Πλοήγηση</SidebarGroupLabel>
+              <SidebarGroupLabel>Εργαλεία</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={() => setActiveView("chat")}
-                      data-active={activeView === "chat"}
-                      className={activeView === "chat" ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
-                      data-testid="button-nav-chat"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      <span>AI Βοηθός</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      onClick={() => setActiveView("history")}
-                      data-active={activeView === "history"}
-                      className={activeView === "history" ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
-                      data-testid="button-nav-history"
-                    >
-                      <History className="w-4 h-4" />
-                      <span>Ιστορικό</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {NAV_ITEMS.map(({ view, icon: Icon, label }) => (
+                    <SidebarMenuItem key={view}>
+                      <SidebarMenuButton
+                        onClick={() => setActiveView(view)}
+                        className={activeView === view ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" : ""}
+                        data-testid={`button-nav-${view}`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -204,25 +167,16 @@ export default function Dashboard() {
                 <SidebarGroupContent>
                   <div className="px-2 py-3 rounded-md bg-sidebar-accent/50 mx-2">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-sidebar-foreground">Δωρεάν Πλάνο</span>
+                      <span className="text-xs font-medium">Δωρεάν Πλάνο</span>
                       <Badge variant="secondary" className="text-xs" data-testid="badge-plan-free">Δωρεάν</Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground mb-3">
-                      <span className="font-semibold text-sidebar-foreground" data-testid="text-questions-left">{questionsLeft}</span> ερωτήσεις απομένουν
-                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      <span className="font-semibold text-sidebar-foreground" data-testid="text-questions-left">{questionsLeft}</span>/5 ερωτήσεις
+                    </p>
                     <div className="h-1.5 bg-sidebar-border rounded-full overflow-hidden mb-3">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${((5 - (questionsLeft || 0)) / 5) * 100}%` }}
-                      />
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${((5 - (questionsLeft || 0)) / 5) * 100}%` }} />
                     </div>
-                    <Button
-                      size="sm"
-                      className="w-full gap-1"
-                      onClick={() => upgradeMutation.mutate()}
-                      disabled={upgradeMutation.isPending}
-                      data-testid="button-upgrade"
-                    >
+                    <Button size="sm" className="w-full gap-1" onClick={() => upgradeMutation.mutate()} disabled={upgradeMutation.isPending} data-testid="button-upgrade">
                       {upgradeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Crown className="w-3 h-3" />}
                       Αναβάθμιση σε Pro
                     </Button>
@@ -257,13 +211,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground truncate">{user?.profession ? professionLabels[user.profession] : ""}</p>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground"
-              onClick={logout}
-              data-testid="button-logout"
-            >
+            <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={logout} data-testid="button-logout">
               <LogOut className="w-4 h-4" />
               Αποσύνδεση
             </Button>
@@ -274,9 +222,7 @@ export default function Dashboard() {
           <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-3">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="font-semibold text-sm">
-                {activeView === "chat" ? "AI Βοηθός" : "Ιστορικό Ερωτήσεων"}
-              </h1>
+              <h1 className="font-semibold text-sm">{activeNavLabel}</h1>
             </div>
             <div className="flex items-center gap-2">
               {user?.plan === "pro" && (
@@ -288,6 +234,7 @@ export default function Dashboard() {
             </div>
           </header>
 
+          {/* ── AI Chat ── */}
           {activeView === "chat" && (
             <div className="flex flex-col flex-1 min-h-0">
               <ScrollArea className="flex-1">
@@ -307,7 +254,7 @@ export default function Dashboard() {
                             key={q}
                             onClick={() => setQuestion(q)}
                             className="p-3 rounded-md border border-border text-sm text-left hover-elevate bg-card text-card-foreground"
-                            data-testid={`button-example-question`}
+                            data-testid="button-example-question"
                           >
                             <ChevronRight className="w-3 h-3 text-primary inline mr-1" />
                             {q}
@@ -318,35 +265,20 @@ export default function Dashboard() {
                   )}
 
                   {currentMessages.map((msg, i) => (
-                    <div
-                      key={i}
-                      className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                      data-testid={`message-${msg.role}-${i}`}
-                    >
+                    <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`} data-testid={`message-${msg.role}-${i}`}>
                       {msg.role === "ai" && (
                         <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-1">
                           <Building2 className="w-4 h-4 text-primary" />
                         </div>
                       )}
-                      <div
-                        className={`max-w-[80%] rounded-md px-4 py-3 text-sm leading-relaxed ${
-                          msg.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-card border border-card-border text-card-foreground"
-                        }`}
-                      >
-                        {msg.text.startsWith("⚠️") ? (
+                      <div className={`max-w-[80%] rounded-md px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-card border border-card-border text-card-foreground"}`}>
+                        {msg.text.startsWith("LIMIT:") ? (
                           <div className="flex gap-2 items-start">
                             <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                             <div>
                               <p className="font-medium text-destructive mb-1">Όριο ερωτήσεων</p>
-                              <p className="text-muted-foreground">{msg.text.replace("⚠️ ", "")}</p>
-                              <Button
-                                size="sm"
-                                className="mt-3 gap-1"
-                                onClick={() => upgradeMutation.mutate()}
-                                disabled={upgradeMutation.isPending}
-                              >
+                              <p className="text-muted-foreground text-xs">{msg.text.replace("LIMIT:", "")}</p>
+                              <Button size="sm" className="mt-3 gap-1" onClick={() => upgradeMutation.mutate()} disabled={upgradeMutation.isPending}>
                                 <Crown className="w-3 h-3" />
                                 Αναβάθμιση σε Pro
                               </Button>
@@ -405,12 +337,7 @@ export default function Dashboard() {
                       disabled={askMutation.isPending}
                       data-testid="input-question"
                     />
-                    <Button
-                      size="icon"
-                      onClick={handleSend}
-                      disabled={!question.trim() || askMutation.isPending}
-                      data-testid="button-send"
-                    >
+                    <Button size="icon" onClick={handleSend} disabled={!question.trim() || askMutation.isPending} data-testid="button-send">
                       {askMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
@@ -424,6 +351,28 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* ── Blueprint Analysis ── */}
+          {activeView === "blueprint" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <BlueprintAnalysis />
+            </div>
+          )}
+
+          {/* ── Permit Checklist ── */}
+          {activeView === "checklist" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PermitChecklist />
+            </div>
+          )}
+
+          {/* ── Cost Estimator ── */}
+          {activeView === "estimator" && (
+            <div className="flex-1 min-h-0 overflow-auto">
+              <CostEstimator />
+            </div>
+          )}
+
+          {/* ── History ── */}
           {activeView === "history" && (
             <ScrollArea className="flex-1">
               <div className="max-w-3xl mx-auto px-4 py-6">
@@ -438,12 +387,7 @@ export default function Dashboard() {
                   <div className="text-center py-12">
                     <History className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                     <p className="text-muted-foreground">Δεν έχετε κάνει ερωτήσεις ακόμα</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => setActiveView("chat")}
-                    >
+                    <Button variant="outline" size="sm" className="mt-4" onClick={() => setActiveView("chat")}>
                       Κάντε την πρώτη σας ερώτηση
                     </Button>
                   </div>

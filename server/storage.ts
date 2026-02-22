@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, questions, type User, type InsertUser, type Question } from "@shared/schema";
+import { users, questions, uploads, type User, type InsertUser, type Question, type Upload } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
@@ -11,6 +11,8 @@ export interface IStorage {
   resetMonthlyQuestions(id: string): Promise<User>;
   createQuestion(userId: string, question: string, answer: string): Promise<Question>;
   getUserQuestions(userId: string): Promise<Question[]>;
+  createUpload(userId: string, filename: string, fileType: string, analysis: string): Promise<Upload>;
+  getUserUploads(userId: string): Promise<Upload[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -72,6 +74,15 @@ export class DatabaseStorage implements IStorage {
 
   async getUserQuestions(userId: string): Promise<Question[]> {
     return await db.select().from(questions).where(eq(questions.userId, userId)).orderBy(desc(questions.createdAt));
+  }
+
+  async createUpload(userId: string, filename: string, fileType: string, analysis: string): Promise<Upload> {
+    const result = await db.insert(uploads).values({ userId, filename, fileType, analysis }).returning();
+    return result[0];
+  }
+
+  async getUserUploads(userId: string): Promise<Upload[]> {
+    return await db.select().from(uploads).where(eq(uploads.userId, userId)).orderBy(desc(uploads.createdAt));
   }
 }
 

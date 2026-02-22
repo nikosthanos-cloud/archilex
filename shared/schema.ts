@@ -40,6 +40,15 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Εισάγετε τον κωδικό σας"),
 });
 
+export const uploads = pgTable("uploads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  filename: text("filename").notNull(),
+  fileType: text("file_type").notNull(),
+  analysis: text("analysis").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const insertQuestionSchema = createInsertSchema(questions).pick({
   question: true,
 });
@@ -48,3 +57,4 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type Question = typeof questions.$inferSelect;
 export type InsertQuestion = z.infer<typeof insertQuestionSchema>;
+export type Upload = typeof uploads.$inferSelect;
