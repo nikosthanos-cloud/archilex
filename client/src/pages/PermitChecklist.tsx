@@ -79,6 +79,15 @@ function formatChecklist(text: string) {
   });
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function buildPdfHtml(checklist: string, project: ProjectSummary, generatedDate: string): string {
   const flagLine = (label: string, value: boolean) =>
     value ? `<span class="tag">${label}</span>` : "";
@@ -94,20 +103,20 @@ function buildPdfHtml(checklist: string, project: ProjectSummary, generatedDate:
 
   const formatLine = (line: string, idx: number): string => {
     if (line.startsWith("## ") || line.startsWith("# ")) {
-      return `<div class="section-header">${line.replace(/^#+\s/, "")}</div>`;
+      return `<div class="section-header">${escapeHtml(line.replace(/^#+\s/, ""))}</div>`;
     }
     if (line.match(/^\*\*.*\*\*:?$/) || (line.startsWith("**") && line.endsWith("**"))) {
-      return `<p class="subsection">${line.replace(/\*\*/g, "")}</p>`;
+      return `<p class="subsection">${escapeHtml(line.replace(/\*\*/g, ""))}</p>`;
     }
     if (line.match(/^\*\*.*\*\*/)) {
-      return `<p class="note">${line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}</p>`;
+      return `<p class="note">${escapeHtml(line).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}</p>`;
     }
     if (line.startsWith("- ") || line.startsWith("• ") || line.match(/^\d+\./)) {
-      const content = line.replace(/^[-•]\s/, "").replace(/^\d+\.\s/, "");
+      const content = escapeHtml(line.replace(/^[-•]\s/, "").replace(/^\d+\.\s/, ""));
       return `<div class="checklist-item"><span class="checkbox">☐</span><span class="item-text">${content}</span></div>`;
     }
     if (line.trim() === "") return `<div class="spacer"></div>`;
-    return `<p class="body-text">${line}</p>`;
+    return `<p class="body-text">${escapeHtml(line)}</p>`;
   };
 
   const formattedLines = checklist.split("\n").map(formatLine).join("");
@@ -325,23 +334,23 @@ function buildPdfHtml(checklist: string, project: ProjectSummary, generatedDate:
     <div class="details-grid">
       <div class="detail-item">
         <div class="detail-label">Τύπος Έργου</div>
-        <div class="detail-value">${project.projectType}</div>
+        <div class="detail-value">${escapeHtml(project.projectType)}</div>
       </div>
       <div class="detail-item">
         <div class="detail-label">Χρήση</div>
-        <div class="detail-value">${project.useType}</div>
+        <div class="detail-value">${escapeHtml(project.useType)}</div>
       </div>
       <div class="detail-item">
         <div class="detail-label">Τοποθεσία</div>
-        <div class="detail-value">${project.location}</div>
+        <div class="detail-value">${escapeHtml(project.location)}</div>
       </div>
       <div class="detail-item">
         <div class="detail-label">Εμβαδόν</div>
-        <div class="detail-value">${project.area} τ.μ.</div>
+        <div class="detail-value">${escapeHtml(project.area)} τ.μ.</div>
       </div>
       <div class="detail-item">
         <div class="detail-label">Αριθμός Ορόφων</div>
-        <div class="detail-value">${project.floors}</div>
+        <div class="detail-value">${escapeHtml(project.floors)}</div>
       </div>
     </div>
     ${flags ? `<div class="flags-row">${flags}</div>` : ""}
