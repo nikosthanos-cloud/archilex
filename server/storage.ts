@@ -4,7 +4,14 @@ import {
   type User, type InsertUser, type UpdateProfile, type Question, type Upload,
   type Project, type InsertProject, type ProjectNote,
 } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte, lt, count } from "drizzle-orm";
+
+export interface AdminStats {
+  totalUsers: number;
+  activeSubscriptions: number;
+  inactiveUsers: number;
+  recentSignups: number;
+}
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -12,6 +19,9 @@ export interface IStorage {
   createUser(user: InsertUser & { password: string }): Promise<User>;
   updateUserPlan(id: string, plan: string): Promise<User>;
   updateUserProfile(id: string, data: UpdateProfile): Promise<User>;
+  updateLastLogin(id: string): Promise<void>;
+  getAllUsers(): Promise<User[]>;
+  getAdminStats(): Promise<AdminStats>;
   incrementUsageCount(id: string): Promise<User>;
   resetMonthlyUsage(id: string): Promise<User>;
   createQuestion(userId: string, question: string, answer: string): Promise<Question>;
@@ -65,6 +75,30 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return result[0];
+  }
+
+  async updateLastLogin(id: string): Promise<void> {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, id));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getAdminStats(): Promise<AdminStats> {
+    const allUsers = await db.select().from(users);
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const totalUsers = allUsers.length;
+    const activeSubscriptions = allUsers.filter(u => u.plan !== "free").length;
+    const inactiveUsers = allUsers.filter(u => {
+      if (u.lastLoginAt) return new Date(u.lastLoginAt) < sevenDaysAgo;
+      return new Date(u.createdAt) < sevenDaysAgo;
+    }).length;
+    const recentSignups = allUsers.filter(u => new Date(u.createdAt) >= sevenDaysAgo).length;
+
+    return { totalUsers, activeSubscriptions, inactiveUsers, recentSignups };
   }
 
   async incrementUsageCount(id: string): Promise<User> {

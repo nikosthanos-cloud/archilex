@@ -19,6 +19,8 @@ export const users = pgTable("users", {
   officeAddress: text("office_address"),
   teeNumber: text("tee_number"),
   specialty: text("specialty"),
+  role: text("role").notNull().default("user"),
+  lastLoginAt: timestamp("last_login_at"),
 });
 
 export const questions = pgTable("questions", {

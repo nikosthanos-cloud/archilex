@@ -104,7 +104,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const valid = await bcrypt.compare(data.password, user.password);
       if (!valid) return res.status(401).json({ error: "Λάθος email ή κωδικός" });
       req.session.userId = user.id;
-      const { password: _, ...safeUser } = user;
+      await storage.updateLastLogin(user.id);
+      const updatedUser = await storage.getUser(user.id);
+      const { password: _, ...safeUser } = updatedUser!;
       res.json({ user: safeUser });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
@@ -339,6 +341,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
       res.status(500).json({ error: "Σφάλμα κατά τη δημιουργία της έκθεσης" });
+    }
+  });
+
+  // ── Admin ─────────────────────────────────────────────────────────────
+  async function requireAdmin(req: Request, res: Response, next: Function) {
+    if (!req.session.userId) return res.status(401).json({ error: "Δεν είστε συνδεδεμένοι" });
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.role !== "admin") return res.status(403).json({ error: "Δεν έχετε δικαίωμα πρόσβασης" });
+    next();
+  }
+
+  app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getAdminStats();
+      res.json(stats);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Σφάλμα κατά τη φόρτωση στατιστικών" });
+    }
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const safeUsers = allUsers.map(({ password: _, ...u }) => u);
+      res.json({ users: safeUsers });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Σφάλμα κατά τη φόρτωση χρηστών" });
     }
   });
 

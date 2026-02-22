@@ -18,6 +18,8 @@ interface User {
   officeAddress: string | null;
   teeNumber: string | null;
   specialty: string | null;
+  role: string;
+  lastLoginAt: string | null;
 }
 
 interface AuthContextType {

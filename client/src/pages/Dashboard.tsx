@@ -12,8 +12,9 @@ import {
 import {
   Building2, Send, Loader2, LogOut, MessageSquare, History,
   Crown, User, ChevronRight, Sparkles, AlertCircle, FileImage,
-  ClipboardList, Calculator, Banknote, FolderKanban, ScrollText, CheckCircle, UserCog,
+  ClipboardList, Calculator, Banknote, FolderKanban, ScrollText, CheckCircle, UserCog, ShieldCheck,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -122,6 +123,7 @@ const UPGRADE_PLANS = [
 export default function Dashboard() {
   const { user, logout, refreshUser } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [question, setQuestion] = useState("");
   const [activeView, setActiveView] = useState<View>("chat");
   const [currentMessages, setCurrentMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
@@ -279,6 +281,12 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground truncate">{user?.profession ? professionLabels[user.profession] : ""}</p>
               </div>
             </div>
+            {user?.role === "admin" && (
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => setLocation("/admin")} data-testid="button-admin-panel">
+                <ShieldCheck className="w-4 h-4" />
+                Admin Panel
+              </Button>
+            )}
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={logout} data-testid="button-logout">
               <LogOut className="w-4 h-4" />
               Αποσύνδεση

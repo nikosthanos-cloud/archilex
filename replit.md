@@ -17,6 +17,7 @@ ArchiLex is a full-stack web application for Greek architects and engineers. It 
 - **Project Tracker (Έργα)** — Full project management for building permit tracking: create projects, advance through 5 permit stages, add per-project notes, set deadline reminders, colored status badges
 - **Question History** — Full history of all past AI questions and answers
 - **Profile Settings (Προφίλ)** — Users can edit their personal info (first/last name, email, phone, office address, TEE registration number, specialty); saved values auto-fill engineer fields in Technical Reports and TEE Calculator PDF
+- **Admin Dashboard** — Role-based admin panel at `/admin` (requires `role = "admin"` in DB). Shows: KPI summary cards (total users, active subscriptions, inactive users 7d, new signups 7d), full user table with subscription status and last login, Chart.js analytics (daily logins 30d bar chart, weekly signups 12w line chart, plan distribution, activity stats). Accessible via "Admin Panel" button visible only to admin users in the sidebar.
 - **Greek Language** — Full app UI and all responses in Greek
 
 ## Tech Stack
