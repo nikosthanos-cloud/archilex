@@ -18,7 +18,7 @@ declare module "express-session" {
   }
 }
 
-const FREE_MONTHLY_LIMIT = 5;
+const FREE_MONTHLY_LIMIT = 10;
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -46,6 +46,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   function requireAuth(req: Request, res: Response, next: Function) {
     if (!req.session.userId) return res.status(401).json({ error: "Δεν είστε συνδεδεμένοι" });
     next();
+  }
+
+  async function checkAndIncrementUsage(userId: string, res: Response): Promise<boolean> {
+    const user = await storage.getUser(userId);
+    if (!user) { res.status(401).json({ error: "Χρήστης δεν βρέθηκε" }); return false; }
+    if (user.plan !== "free") {
+      await storage.incrementUsageCount(userId);
+      return true;
+    }
+    const now = new Date();
+    const lastReset = new Date(user.lastResetDate);
+    const sameMonth = now.getMonth() === lastReset.getMonth() && now.getFullYear() === lastReset.getFullYear();
+    const currentCount = sameMonth ? user.usesThisMonth : 0;
+    if (currentCount >= FREE_MONTHLY_LIMIT) {
+      res.status(403).json({
+        error: `Έχετε εξαντλήσει το μηνιαίο όριο των ${FREE_MONTHLY_LIMIT} χρήσεων. Αναβαθμίστε σε Pro για απεριόριστη πρόσβαση σε όλα τα εργαλεία.`,
+        limitReached: true,
+      });
+      return false;
+    }
+    await storage.incrementUsageCount(userId);
+    return true;
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────
@@ -101,24 +123,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/questions/ask", requireAuth, async (req, res) => {
     try {
       const { question } = insertQuestionSchema.parse(req.body);
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) return res.status(401).json({ error: "Χρήστης δεν βρέθηκε" });
-
-      const now = new Date();
-      const lastReset = new Date(user.lastResetDate);
-      const sameMonth = now.getMonth() === lastReset.getMonth() && now.getFullYear() === lastReset.getFullYear();
-      const currentCount = sameMonth ? user.questionsUsedThisMonth : 0;
-
-      if (user.plan === "free" && currentCount >= FREE_MONTHLY_LIMIT) {
-        return res.status(403).json({
-          error: "Έχετε εξαντλήσει το μηνιαίο όριο των 5 ερωτήσεων. Αναβαθμίστε σε Pro για απεριόριστες ερωτήσεις.",
-          limitReached: true,
-        });
-      }
-
+      const canProceed = await checkAndIncrementUsage(req.session.userId!, res);
+      if (!canProceed) return;
       const answer = await askClaude(question);
-      await storage.incrementQuestionCount(user.id);
-      const saved = await storage.createQuestion(user.id, question, answer);
+      const saved = await storage.createQuestion(req.session.userId!, question, answer);
       res.json({ question: saved });
     } catch (err) {
       if (err instanceof ZodError) return res.status(400).json({ error: err.errors[0].message });
@@ -132,10 +140,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ questions: userQuestions });
   });
 
+  // ── Usage increment for client-side tools (TEE, Cost Estimator) ──────
+  app.post("/api/usage/increment", requireAuth, async (req, res) => {
+    try {
+      const canProceed = await checkAndIncrementUsage(req.session.userId!, res);
+      if (!canProceed) return;
+      const user = await storage.getUser(req.session.userId!);
+      res.json({ ok: true, usesThisMonth: user?.usesThisMonth ?? 0 });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα" });
+    }
+  });
+
   // ── Blueprint Analysis ────────────────────────────────────────────────
   app.post("/api/uploads/analyze", requireAuth, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "Δεν βρέθηκε αρχείο" });
+      const canProceed = await checkAndIncrementUsage(req.session.userId!, res);
+      if (!canProceed) return;
 
       const { buffer, mimetype, originalname } = req.file;
       const base64Data = buffer.toString("base64");
@@ -181,6 +203,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/permits/checklist", requireAuth, async (req, res) => {
     try {
+      const canProceed = await checkAndIncrementUsage(req.session.userId!, res);
+      if (!canProceed) return;
       const data = checklistSchema.parse(req.body);
       const checklist = await generatePermitChecklist(data);
       res.json({ checklist });
@@ -268,6 +292,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ── Technical Reports ──────────────────────────────────────────────────
   app.post("/api/reports/generate", requireAuth, async (req, res) => {
     try {
+      const canProceed = await checkAndIncrementUsage(req.session.userId!, res);
+      if (!canProceed) return;
       const schema = z.object({
         reportType: z.string().min(1),
         address: z.string().min(1),

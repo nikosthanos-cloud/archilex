@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, TrendingUp, TrendingDown, Minus, Info, Euro, RotateCcw } from "lucide-react";
+import { Calculator, TrendingUp, TrendingDown, Minus, Info, Euro, RotateCcw, AlertCircle, Crown } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { apiRequest } from "@/lib/queryClient";
 
 const estimatorSchema = z.object({
   area: z.string().min(1, "Εισάγετε εμβαδόν").refine((v) => Number(v) > 0, "Εισάγετε έγκυρο εμβαδόν"),
@@ -128,7 +130,10 @@ function CostBar({ label, min, max, className }: { label: string; min: number; m
 }
 
 export default function CostEstimator() {
+  const { user, refreshUser } = useAuth();
   const [result, setResult] = useState<EstimateResult | null>(null);
+  const FREE_LIMIT = 10;
+  const limitReached = user?.plan === "free" && (user?.usesThisMonth ?? 0) >= FREE_LIMIT;
 
   const form = useForm<EstimatorForm>({
     resolver: zodResolver(estimatorSchema),
@@ -142,7 +147,9 @@ export default function CostEstimator() {
   });
 
   function onSubmit(values: EstimatorForm) {
+    if (limitReached) return;
     setResult(calculate(values));
+    apiRequest("POST", "/api/usage/increment").then(() => refreshUser()).catch(() => {});
   }
 
   return (
@@ -262,7 +269,13 @@ export default function CostEstimator() {
                   )}
                 />
 
-                <Button type="submit" className="w-full gap-2" data-testid="button-calculate">
+                {limitReached && (
+                  <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/20 flex items-start gap-2 text-xs text-destructive" data-testid="banner-limit-reached">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>Εξαντλήσατε το μηνιαίο όριο ({FREE_LIMIT} χρήσεις). Αναβαθμίστε σε <strong>Pro</strong> για απεριόριστη πρόσβαση.</span>
+                  </div>
+                )}
+                <Button type="submit" className="w-full gap-2" disabled={limitReached} data-testid="button-calculate">
                   <Calculator className="w-4 h-4" />
                   Υπολογισμός Κόστους
                 </Button>

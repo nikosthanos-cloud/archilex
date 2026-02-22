@@ -10,8 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calculator, Download, Info } from "lucide-react";
+import { Loader2, Calculator, Download, Info, AlertCircle, Crown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
+import { apiRequest } from "@/lib/queryClient";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -261,8 +263,11 @@ function buildPdfHtml(result: FeeResult, generatedDate: string): string {
 
 export default function TeeCalculator() {
   const { toast } = useToast();
+  const { user, refreshUser } = useAuth();
   const [result, setResult] = useState<FeeResult | null>(null);
   const [exporting, setExporting] = useState(false);
+  const FREE_LIMIT = 10;
+  const limitReached = user?.plan === "free" && (user?.usesThisMonth ?? 0) >= FREE_LIMIT;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -279,6 +284,7 @@ export default function TeeCalculator() {
   });
 
   function onSubmit(values: FormValues) {
+    if (limitReached) return;
     const area = parseFloat(values.area);
     const cost = parseFloat(values.cost);
     if (isNaN(area) || area <= 0) {
@@ -294,6 +300,7 @@ export default function TeeCalculator() {
       return;
     }
     setResult(calculateFees(values));
+    apiRequest("POST", "/api/usage/increment").then(() => refreshUser()).catch(() => {});
   }
 
   async function handleExportPDF() {
@@ -460,7 +467,13 @@ export default function TeeCalculator() {
                   ))}
                 </div>
 
-                <Button type="submit" size="sm" className="w-full" data-testid="button-calculate">
+                {limitReached && (
+                  <div className="p-2.5 rounded-md bg-destructive/10 border border-destructive/20 flex items-start gap-2 text-xs text-destructive" data-testid="banner-limit-reached">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span>Εξαντλήσατε το μηνιαίο όριο ({FREE_LIMIT} χρήσεις). Αναβαθμίστε σε <strong>Pro</strong> για απεριόριστη πρόσβαση.</span>
+                  </div>
+                )}
+                <Button type="submit" size="sm" className="w-full" disabled={limitReached} data-testid="button-calculate">
                   <Calculator className="w-3.5 h-3.5 mr-2" />
                   Υπολογισμός Αμοιβών
                 </Button>

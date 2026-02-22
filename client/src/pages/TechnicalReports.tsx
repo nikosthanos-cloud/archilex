@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import { FileText, Download, Loader2, Sparkles, FileDown } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -136,6 +137,7 @@ function buildDocxParagraphs(text: string) {
 
 export default function TechnicalReports() {
   const { toast } = useToast();
+  const { refreshUser } = useAuth();
   const reportRef = useRef<HTMLDivElement>(null);
 
   const [reportType, setReportType] = useState("");
@@ -154,25 +156,24 @@ export default function TechnicalReports() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/reports/generate", {
-        reportType,
-        address,
-        area,
-        floors,
-        constructionYear,
-        ownerName,
-        engineerName,
-        engineerSpecialty,
-        teeNumber,
-        specialNotes,
-        reportDate: formatDateGR(reportDate),
+        reportType, address, area, floors, constructionYear,
+        ownerName, engineerName, engineerSpecialty, teeNumber,
+        specialNotes, reportDate: formatDateGR(reportDate),
       });
-      return res.json();
+      const data = await res.json();
+      if (!res.ok) throw { message: data.error, limitReached: data.limitReached };
+      return data;
     },
     onSuccess: (data) => {
       setGeneratedReport(data.report);
+      refreshUser();
     },
-    onError: () => {
-      toast({ title: "Σφάλμα", description: "Αποτυχία δημιουργίας έκθεσης.", variant: "destructive" });
+    onError: (err: any) => {
+      if (err.limitReached) {
+        toast({ title: "Όριο χρήσεων μηνός", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "Σφάλμα", description: err.message || "Αποτυχία δημιουργίας έκθεσης.", variant: "destructive" });
+      }
     },
   });
 

@@ -2,17 +2,18 @@
 
 ## Overview
 
-ArchiLex is a full-stack web application for Greek architects and engineers. It provides AI-powered tools for building permit management, construction law Q&A, blueprint analysis, and project tracking — entirely in Greek.
+ArchiLex is a full-stack web application for Greek architects and engineers. It provides AI-powered tools for building permit management, construction law Q&A, blueprint analysis, project tracking, technical report generation, and cost calculations — entirely in Greek.
 
 ## Features
 
 - **User Registration/Login** — Secure auth with bcryptjs + PostgreSQL sessions
-- **Free & Pro Plans** — Free users get 5 AI questions/month; Pro users get unlimited
+- **Free & Pro Plans** — Free users get 10 AI uses/month across ALL tools; Pro users get unlimited
 - **AI Assistant** — Powered by Anthropic Claude (claude-opus-4-5), specialized in Greek building permits (Ν. 4495/2017, ΓΟΚ, ΝΟΚ, ΚΕΝΑΚ, αντισεισμικός κανονισμός, αυθαίρετα)
 - **Blueprint Analysis** — Upload JPG/PNG/PDF architectural drawings; Claude Vision analyses them and returns a structured Greek report
 - **Permit Checklist Generator** — Generates a customized document checklist for building permits based on project parameters; Export to PDF
-- **Construction Cost Estimator** — Calculates construction costs using Greek market data (2024-2025) with PDF export
-- **TEE Fee Calculator (Αμοιβές ΤΕΕ)** — Calculates minimum engineer fees per ΠΔ 696/1974 across all study types (architectural, static, H/M, energy) with VAT and PDF export
+- **Construction Cost Estimator** — Calculates construction costs using Greek market data (2024-2025) with PDF export; usage tracked
+- **TEE Fee Calculator (Αμοιβές ΤΕΕ)** — Calculates minimum engineer fees per ΠΔ 696/1974 across all study types (architectural, static, H/M, energy) with VAT and PDF export; usage tracked
+- **Technical Reports (Τεχνικές Εκθέσεις)** — AI-generated professional technical reports (Architectural Description, Static Study Summary, Energy Inspection, Unauthorized Construction Assessment) with PDF and Word export
 - **Project Tracker (Έργα)** — Full project management for building permit tracking: create projects, advance through 5 permit stages, add per-project notes, set deadline reminders, colored status badges
 - **Question History** — Full history of all past AI questions and answers
 - **Greek Language** — Full app UI and all responses in Greek
@@ -25,6 +26,7 @@ ArchiLex is a full-stack web application for Greek architects and engineers. It 
 - **AI**: Anthropic Claude API (`@anthropic-ai/sdk`)
 - **Auth**: express-session + connect-pg-simple + bcryptjs
 - **PDF Export**: jsPDF + html2canvas
+- **Word Export**: docx package (for Technical Reports)
 - **Routing**: wouter
 
 ## Project Structure
@@ -32,31 +34,32 @@ ArchiLex is a full-stack web application for Greek architects and engineers. It 
 ```
 client/src/
   pages/
-    Landing.tsx           — Public landing page (Greek)
-    Login.tsx             — Login form
-    Register.tsx          — Registration form with profession selection
-    Dashboard.tsx         — Main app shell with sidebar navigation
-    BlueprintAnalysis.tsx — Blueprint/floor plan upload + Claude Vision analysis
-    PermitChecklist.tsx   — AI permit checklist generator + PDF export
-    CostEstimator.tsx     — Construction cost estimator
-    TeeCalculator.tsx     — TEE engineer fee calculator + PDF export
-    Projects.tsx          — Project tracker with stages, notes, deadlines
+    Landing.tsx              — Public landing page (Greek)
+    Login.tsx                — Login form
+    Register.tsx             — Registration form with profession selection
+    Dashboard.tsx            — Main app shell with sidebar navigation + unified usage counter
+    BlueprintAnalysis.tsx    — Blueprint/floor plan upload + Claude Vision analysis
+    PermitChecklist.tsx      — AI permit checklist generator + PDF export
+    CostEstimator.tsx        — Construction cost estimator + usage tracking
+    TeeCalculator.tsx        — TEE engineer fee calculator + PDF export + usage tracking
+    TechnicalReports.tsx     — AI technical report generator + PDF/Word export
+    Projects.tsx             — Project tracker with stages, notes, deadlines
   lib/
-    auth.tsx              — Auth context/hooks
-    queryClient.ts        — TanStack Query setup
+    auth.tsx                 — Auth context/hooks (includes refreshUser)
+    queryClient.ts           — TanStack Query setup
 server/
-  index.ts                — Express entry point
-  routes.ts               — All API routes
-  storage.ts              — Database storage layer (IStorage + DatabaseStorage)
-  db.ts                   — Drizzle ORM connection
-  anthropic.ts            — Claude AI integration
+  index.ts                   — Express entry point
+  routes.ts                  — All API routes with checkAndIncrementUsage helper
+  storage.ts                 — Database storage layer (IStorage + DatabaseStorage)
+  db.ts                      — Drizzle ORM connection
+  anthropic.ts               — Claude AI integration
 shared/
-  schema.ts               — Drizzle schema + Zod validation types
+  schema.ts                  — Drizzle schema + Zod validation types
 ```
 
 ## Database Tables
 
-- `users` — User accounts with plan and question quota
+- `users` — User accounts with plan and usage quota (`questions_used_this_month` DB column, `usesThisMonth` TS property)
 - `questions` — AI question/answer history per user
 - `uploads` — Blueprint upload + analysis history per user
 - `projects` — Building permit projects (name, client, address, type, status, deadline)
@@ -73,12 +76,14 @@ shared/
 - `POST /api/auth/register` — Create account
 - `POST /api/auth/login` — Login
 - `POST /api/auth/logout` — Logout
-- `GET /api/auth/me` — Get current user
-- `POST /api/questions/ask` — Ask AI question (auth required, rate-limited for free)
+- `GET /api/auth/me` — Get current user (returns `usesThisMonth` field)
+- `POST /api/questions/ask` — Ask AI question (auth required, checks 10 uses/month limit)
 - `GET /api/questions/history` — Get user's question history
-- `POST /api/uploads/analyze` — Upload blueprint for analysis
+- `POST /api/uploads/analyze` — Upload blueprint for analysis (checks limit)
 - `GET /api/uploads/history` — Get upload history
-- `POST /api/permits/checklist` — Generate permit checklist (AI)
+- `POST /api/permits/checklist` — Generate permit checklist (AI, checks limit)
+- `POST /api/reports/generate` — Generate technical report (AI, checks limit)
+- `POST /api/usage/increment` — Increment usage count for client-side tools (TEE, Cost Estimator)
 - `GET /api/projects` — List user's projects
 - `POST /api/projects` — Create project
 - `PATCH /api/projects/:id` — Update project (status, deadline, etc.)
@@ -90,8 +95,12 @@ shared/
 
 ## Business Logic
 
-- Free plan: 5 questions/month, resets on new calendar month
-- Pro plan: unlimited questions
+- **Unified usage limit**: Free plan = 10 uses/month across ALL tools (AI Chat, Blueprint Analysis, Permit Checklist, TEE Calculator, Cost Estimator, Technical Reports). Pro plan = unlimited.
+- Usage counter displayed in sidebar with color-coded progress bar (green < 60%, amber < 80%, red ≥ 80%)
+- Storage method: `incrementUsageCount` (renamed from `incrementQuestionCount`), `resetMonthlyUsage`
+- DB column `questions_used_this_month` unchanged; TypeScript property name is `usesThisMonth`
+- Server-side tools (AI chat, blueprint, checklist, reports) call `checkAndIncrementUsage` before processing
+- Client-side tools (TEE calculator, cost estimator) call `/api/usage/increment` after calculation
 - Claude is instructed to answer only questions about Greek building permits, construction law, and related technical regulations
 - Project status stages: Προετοιμασία → Υποβολή → Σε εξέλιξη → Εγκρίθηκε → Ολοκληρώθηκε
-- Status badge colors: green=Ολοκληρώθηκε, red=Καθυστέρηση (past deadline), yellow=Σε εξέλιξη
+- Technical report types: Αρχιτεκτονική Έκθεση, Σύνοψη Στατικής Μελέτης, Ενεργειακή Επιθεώρηση, Αυθαίρετα

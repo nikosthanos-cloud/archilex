@@ -58,7 +58,7 @@ function formatAnalysis(text: string) {
 }
 
 export default function BlueprintAnalysis() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -94,10 +94,16 @@ export default function BlueprintAnalysis() {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
+      if (!res.ok) {
+        if (data.limitReached) {
+          toast({ title: "Όριο χρήσεων μηνός", description: data.error, variant: "destructive" });
+          return;
+        }
+        throw new Error(data.error);
+      }
       setCurrentAnalysis({ filename: file.name, analysis: data.upload.analysis });
       queryClient.invalidateQueries({ queryKey: ["/api/uploads/history"] });
+      refreshUser();
     } catch (err: any) {
       toast({ title: "Σφάλμα ανάλυσης", description: err.message || "Παρακαλώ δοκιμάστε ξανά", variant: "destructive" });
     } finally {

@@ -130,7 +130,9 @@ export default function Dashboard() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  const questionsLeft = user?.plan === "free" ? Math.max(0, 5 - (user?.questionsUsedThisMonth || 0)) : null;
+  const FREE_LIMIT = 10;
+  const usesLeft = user?.plan === "free" ? Math.max(0, FREE_LIMIT - (user?.usesThisMonth || 0)) : null;
+  const usesUsed = user?.plan === "free" ? Math.min(FREE_LIMIT, user?.usesThisMonth || 0) : null;
   const activeNavLabel = NAV_ITEMS.find((n) => n.view === activeView)?.label || "";
 
   return (
@@ -176,11 +178,18 @@ export default function Dashboard() {
                       <span className="text-xs font-medium">Δωρεάν Πλάνο</span>
                       <Badge variant="secondary" className="text-xs" data-testid="badge-plan-free">Δωρεάν</Badge>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      <span className="font-semibold text-sidebar-foreground" data-testid="text-uses-used">{usesUsed}</span>
+                      <span>/{FREE_LIMIT} χρήσεις αυτόν τον μήνα</span>
+                    </p>
                     <p className="text-xs text-muted-foreground mb-2">
-                      <span className="font-semibold text-sidebar-foreground" data-testid="text-questions-left">{questionsLeft}</span>/5 ερωτήσεις
+                      <span className="font-semibold text-sidebar-foreground" data-testid="text-uses-left">{usesLeft}</span> απομένουν
                     </p>
                     <div className="h-1.5 bg-sidebar-border rounded-full overflow-hidden mb-3">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${((5 - (questionsLeft || 0)) / 5) * 100}%` }} />
+                      <div
+                        className={`h-full rounded-full transition-all ${(usesUsed || 0) >= FREE_LIMIT ? "bg-red-500" : (usesUsed || 0) >= FREE_LIMIT * 0.7 ? "bg-amber-500" : "bg-primary"}`}
+                        style={{ width: `${((usesUsed || 0) / FREE_LIMIT) * 100}%` }}
+                      />
                     </div>
                     <Button size="sm" className="w-full gap-1" onClick={() => upgradeMutation.mutate()} disabled={upgradeMutation.isPending} data-testid="button-upgrade">
                       {upgradeMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Crown className="w-3 h-3" />}
@@ -199,7 +208,7 @@ export default function Dashboard() {
                       <Crown className="w-4 h-4 text-primary" />
                       <span className="text-xs font-semibold text-primary">Pro Πλάνο</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Απεριόριστες ερωτήσεις</p>
+                    <p className="text-xs text-muted-foreground mt-1">Απεριόριστη πρόσβαση σε όλα τα εργαλεία</p>
                   </div>
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -282,7 +291,7 @@ export default function Dashboard() {
                           <div className="flex gap-2 items-start">
                             <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                             <div>
-                              <p className="font-medium text-destructive mb-1">Όριο ερωτήσεων</p>
+                              <p className="font-medium text-destructive mb-1">Όριο χρήσεων μηνός</p>
                               <p className="text-muted-foreground text-xs">{msg.text.replace("LIMIT:", "")}</p>
                               <Button size="sm" className="mt-3 gap-1" onClick={() => upgradeMutation.mutate()} disabled={upgradeMutation.isPending}>
                                 <Crown className="w-3 h-3" />
@@ -321,11 +330,11 @@ export default function Dashboard() {
 
               <div className="border-t border-border p-4 bg-background shrink-0">
                 <div className="max-w-3xl mx-auto">
-                  {user?.plan === "free" && questionsLeft === 0 && (
+                  {user?.plan === "free" && usesLeft === 0 && (
                     <div className="mb-3 p-3 rounded-md bg-destructive/10 border border-destructive/20 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm text-destructive">
                         <AlertCircle className="w-4 h-4 shrink-0" />
-                        <span>Εξαντλήσατε το μηνιαίο όριο των 5 ερωτήσεων</span>
+                        <span>Εξαντλήσατε το μηνιαίο όριο των {FREE_LIMIT} χρήσεων</span>
                       </div>
                       <Button size="sm" onClick={() => upgradeMutation.mutate()} disabled={upgradeMutation.isPending} className="shrink-0 gap-1">
                         <Crown className="w-3 h-3" />
@@ -347,9 +356,9 @@ export default function Dashboard() {
                       {askMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </Button>
                   </div>
-                  {user?.plan === "free" && questionsLeft !== null && questionsLeft > 0 && (
-                    <p className="text-xs text-muted-foreground mt-2 text-right" data-testid="text-questions-remaining">
-                      {questionsLeft} από 5 ερωτήσεις απομένουν αυτόν τον μήνα
+                  {user?.plan === "free" && usesLeft !== null && usesLeft > 0 && (
+                    <p className="text-xs text-muted-foreground mt-2 text-right" data-testid="text-uses-remaining">
+                      {usesLeft} από {FREE_LIMIT} χρήσεις απομένουν αυτόν τον μήνα
                     </p>
                   )}
                 </div>

@@ -10,7 +10,7 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   profession: text("profession").notNull().default("architect"),
   plan: text("plan").notNull().default("free"),
-  questionsUsedThisMonth: integer("questions_used_this_month").notNull().default(0),
+  usesThisMonth: integer("questions_used_this_month").notNull().default(0),
   lastResetDate: timestamp("last_reset_date").notNull().default(sql`now()`),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });

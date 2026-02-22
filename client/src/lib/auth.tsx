@@ -9,7 +9,7 @@ interface User {
   fullName: string;
   profession: string;
   plan: string;
-  questionsUsedThisMonth: number;
+  usesThisMonth: number;
   lastResetDate: string;
   createdAt: string;
 }

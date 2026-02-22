@@ -11,8 +11,8 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser & { password: string }): Promise<User>;
   updateUserPlan(id: string, plan: string): Promise<User>;
-  incrementQuestionCount(id: string): Promise<User>;
-  resetMonthlyQuestions(id: string): Promise<User>;
+  incrementUsageCount(id: string): Promise<User>;
+  resetMonthlyUsage(id: string): Promise<User>;
   createQuestion(userId: string, question: string, answer: string): Promise<Question>;
   getUserQuestions(userId: string): Promise<Question[]>;
   createUpload(userId: string, filename: string, fileType: string, analysis: string): Promise<Upload>;
@@ -48,7 +48,7 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async incrementQuestionCount(id: string): Promise<User> {
+  async incrementUsageCount(id: string): Promise<User> {
     const user = await this.getUser(id);
     if (!user) throw new Error("User not found");
 
@@ -58,22 +58,22 @@ export class DatabaseStorage implements IStorage {
 
     if (!sameMonth) {
       const result = await db.update(users)
-        .set({ questionsUsedThisMonth: 1, lastResetDate: now })
+        .set({ usesThisMonth: 1, lastResetDate: now })
         .where(eq(users.id, id))
         .returning();
       return result[0];
     }
 
     const result = await db.update(users)
-      .set({ questionsUsedThisMonth: user.questionsUsedThisMonth + 1 })
+      .set({ usesThisMonth: user.usesThisMonth + 1 })
       .where(eq(users.id, id))
       .returning();
     return result[0];
   }
 
-  async resetMonthlyQuestions(id: string): Promise<User> {
+  async resetMonthlyUsage(id: string): Promise<User> {
     const result = await db.update(users)
-      .set({ questionsUsedThisMonth: 0, lastResetDate: new Date() })
+      .set({ usesThisMonth: 0, lastResetDate: new Date() })
       .where(eq(users.id, id))
       .returning();
     return result[0];

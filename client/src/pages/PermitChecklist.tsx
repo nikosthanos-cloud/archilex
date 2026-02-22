@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, FileText, CheckSquare, ClipboardList, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -366,6 +367,7 @@ function buildPdfHtml(checklist: string, project: ProjectSummary, generatedDate:
 
 export default function PermitChecklist() {
   const { toast } = useToast();
+  const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [checklist, setChecklist] = useState<string | null>(null);
@@ -393,9 +395,17 @@ export default function PermitChecklist() {
     try {
       const res = await apiRequest("POST", "/api/permits/checklist", values);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) {
+        if (data.limitReached) {
+          toast({ title: "Όριο χρήσεων μηνός", description: data.error, variant: "destructive" });
+        } else {
+          throw new Error(data.error);
+        }
+        return;
+      }
       setChecklist(data.checklist);
       setProjectSummary(values);
+      refreshUser();
     } catch (err: any) {
       toast({ title: "Σφάλμα", description: err.message || "Παρακαλώ δοκιμάστε ξανά", variant: "destructive" });
     } finally {
