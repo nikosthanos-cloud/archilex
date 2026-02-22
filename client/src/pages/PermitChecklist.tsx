@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -11,9 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, FileText, CheckSquare, ClipboardList, Building2, AlertCircle } from "lucide-react";
+import { Loader2, FileText, CheckSquare, ClipboardList, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const checklistSchema = z.object({
   projectType: z.string().min(1, "Επιλέξτε τύπο έργου"),
@@ -29,6 +31,19 @@ const checklistSchema = z.object({
 });
 
 type ChecklistForm = z.infer<typeof checklistSchema>;
+
+interface ProjectSummary {
+  projectType: string;
+  location: string;
+  area: string;
+  floors: string;
+  useType: string;
+  isNew: boolean;
+  hasBasement: boolean;
+  nearAntiquities: boolean;
+  nearSea: boolean;
+  isTraditionalSettlement: boolean;
+}
 
 function formatChecklist(text: string) {
   const lines = text.split("\n");
@@ -63,10 +78,299 @@ function formatChecklist(text: string) {
   });
 }
 
+function buildPdfHtml(checklist: string, project: ProjectSummary, generatedDate: string): string {
+  const flagLine = (label: string, value: boolean) =>
+    value ? `<span class="tag">${label}</span>` : "";
+
+  const flags = [
+    flagLine("Νέα κατασκευή", project.isNew),
+    flagLine("Ανακαίνιση", !project.isNew),
+    flagLine("Υπόγειο", project.hasBasement),
+    flagLine("Κοντά σε αρχαιότητες", project.nearAntiquities),
+    flagLine("Κοντά σε θάλασσα/αιγιαλό", project.nearSea),
+    flagLine("Παραδοσιακός οικισμός", project.isTraditionalSettlement),
+  ].filter(Boolean).join(" ");
+
+  const formatLine = (line: string, idx: number): string => {
+    if (line.startsWith("## ") || line.startsWith("# ")) {
+      return `<div class="section-header">${line.replace(/^#+\s/, "")}</div>`;
+    }
+    if (line.match(/^\*\*.*\*\*:?$/) || (line.startsWith("**") && line.endsWith("**"))) {
+      return `<p class="subsection">${line.replace(/\*\*/g, "")}</p>`;
+    }
+    if (line.match(/^\*\*.*\*\*/)) {
+      return `<p class="note">${line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")}</p>`;
+    }
+    if (line.startsWith("- ") || line.startsWith("• ") || line.match(/^\d+\./)) {
+      const content = line.replace(/^[-•]\s/, "").replace(/^\d+\.\s/, "");
+      return `<div class="checklist-item"><span class="checkbox">☐</span><span class="item-text">${content}</span></div>`;
+    }
+    if (line.trim() === "") return `<div class="spacer"></div>`;
+    return `<p class="body-text">${line}</p>`;
+  };
+
+  const formattedLines = checklist.split("\n").map(formatLine).join("");
+
+  return `<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 11px;
+    color: #1a1a2e;
+    background: #ffffff;
+    width: 794px;
+    padding: 0;
+  }
+  .header {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    color: white;
+    padding: 28px 36px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: bold;
+  }
+  .logo-text {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .logo-subtitle {
+    font-size: 10px;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 10px;
+    opacity: 0.85;
+  }
+  .header-right .doc-title {
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 1;
+    margin-bottom: 3px;
+  }
+
+  .project-details {
+    background: #f0f4ff;
+    border-left: 4px solid #1d4ed8;
+    margin: 24px 36px 0;
+    padding: 16px 20px;
+    border-radius: 0 6px 6px 0;
+  }
+  .project-details-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1d4ed8;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+  .detail-item {}
+  .detail-label {
+    font-size: 9px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+  }
+  .detail-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
+  .flags-row {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tag {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .legal-ref {
+    margin: 16px 36px 0;
+    padding: 10px 14px;
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    font-size: 9.5px;
+    color: #78350f;
+    line-height: 1.5;
+  }
+
+  .checklist-body {
+    padding: 20px 36px 36px;
+  }
+  .section-header {
+    background: #1d4ed8;
+    color: white;
+    padding: 7px 14px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 18px;
+    margin-bottom: 6px;
+  }
+  .subsection {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 3px;
+  }
+  .note {
+    font-size: 10px;
+    color: #4b5563;
+    margin: 4px 0;
+    padding-left: 4px;
+  }
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .checkbox {
+    font-size: 14px;
+    color: #9ca3af;
+    line-height: 1;
+    min-width: 16px;
+    padding-top: 1px;
+  }
+  .item-text {
+    font-size: 10.5px;
+    color: #374151;
+    line-height: 1.45;
+    flex: 1;
+  }
+  .spacer { height: 4px; }
+  .body-text {
+    font-size: 10px;
+    color: #6b7280;
+    margin: 3px 0;
+    line-height: 1.5;
+  }
+
+  .footer {
+    margin: 0 36px;
+    padding: 14px 0 28px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+    color: #9ca3af;
+  }
+  .footer-logo {
+    font-weight: 700;
+    color: #1d4ed8;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-icon">A</div>
+      <div>
+        <div class="logo-text">ArchiLex</div>
+        <div class="logo-subtitle">Πλατφόρμα AI για Αρχιτέκτονες & Μηχανικούς</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="doc-title">Κατάλογος Δικαιολογητικών</div>
+      <div>Ημερομηνία: ${generatedDate}</div>
+      <div>Βάσει Ν. 4495/2017</div>
+    </div>
+  </div>
+
+  <div class="project-details">
+    <div class="project-details-title">Στοιχεία Έργου</div>
+    <div class="details-grid">
+      <div class="detail-item">
+        <div class="detail-label">Τύπος Έργου</div>
+        <div class="detail-value">${project.projectType}</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-label">Χρήση</div>
+        <div class="detail-value">${project.useType}</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-label">Τοποθεσία</div>
+        <div class="detail-value">${project.location}</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-label">Εμβαδόν</div>
+        <div class="detail-value">${project.area} τ.μ.</div>
+      </div>
+      <div class="detail-item">
+        <div class="detail-label">Αριθμός Ορόφων</div>
+        <div class="detail-value">${project.floors}</div>
+      </div>
+    </div>
+    ${flags ? `<div class="flags-row">${flags}</div>` : ""}
+  </div>
+
+  <div class="legal-ref">
+    ⚠ Ο κατάλογος αυτός είναι ενδεικτικός βάσει Ν. 4495/2017 και ισχύουσων διατάξεων. Ενδέχεται να απαιτούνται επιπλέον έγγραφα ανάλογα με τα ιδιαίτερα χαρακτηριστικά του έργου και την αρμόδια Υπηρεσία Δόμησης. Συνιστάται επαλήθευση με την οικεία ΥΔΟΜ.
+  </div>
+
+  <div class="checklist-body">
+    ${formattedLines}
+  </div>
+
+  <div class="footer">
+    <div>
+      <span class="footer-logo">ArchiLex</span> — AI Βοηθός για Ελληνικές Οικοδομικές Άδειες
+    </div>
+    <div>archilexapp.com · Παραγωγή: ${generatedDate}</div>
+  </div>
+</body>
+</html>`;
+}
+
 export default function PermitChecklist() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [checklist, setChecklist] = useState<string | null>(null);
+  const [projectSummary, setProjectSummary] = useState<ProjectSummary | null>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<ChecklistForm>({
     resolver: zodResolver(checklistSchema),
@@ -91,10 +395,98 @@ export default function PermitChecklist() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setChecklist(data.checklist);
+      setProjectSummary(values);
     } catch (err: any) {
       toast({ title: "Σφάλμα", description: err.message || "Παρακαλώ δοκιμάστε ξανά", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleExportPDF() {
+    if (!checklist || !projectSummary) return;
+    setExporting(true);
+
+    try {
+      const generatedDate = new Date().toLocaleDateString("el-GR", {
+        day: "numeric", month: "long", year: "numeric",
+      });
+
+      const htmlContent = buildPdfHtml(checklist, projectSummary, generatedDate);
+
+      const container = document.createElement("div");
+      container.innerHTML = htmlContent;
+      container.style.position = "fixed";
+      container.style.top = "-9999px";
+      container.style.left = "-9999px";
+      container.style.width = "794px";
+      container.style.background = "#ffffff";
+      container.style.zIndex = "-1";
+      document.body.appendChild(container);
+
+      const innerBody = container.querySelector("body") as HTMLElement || container;
+
+      await new Promise((r) => setTimeout(r, 300));
+
+      const canvas = await html2canvas(innerBody, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: 794,
+      });
+
+      document.body.removeChild(container);
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.97);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const canvasWidthMm = pdfWidth;
+      const canvasHeightMm = (canvas.height * pdfWidth) / canvas.width;
+
+      let yPos = 0;
+      let remainingHeight = canvasHeightMm;
+      let page = 0;
+
+      while (remainingHeight > 0) {
+        if (page > 0) pdf.addPage();
+
+        const srcY = (page * pdfHeight * canvas.width) / pdfWidth;
+        const srcH = Math.min(
+          (pdfHeight * canvas.width) / pdfWidth,
+          canvas.height - srcY
+        );
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        const ctx = pageCanvas.getContext("2d")!;
+        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+        const pageImgData = pageCanvas.toDataURL("image/jpeg", 0.97);
+        const pageImgHeight = (srcH * pdfWidth) / canvas.width;
+
+        pdf.addImage(pageImgData, "JPEG", 0, 0, pdfWidth, pageImgHeight);
+
+        remainingHeight -= pdfHeight;
+        page++;
+      }
+
+      const filename = `ArchiLex_Δικαιολογητικά_${projectSummary.projectType.replace(/\s/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      pdf.save(filename);
+
+      toast({ title: "PDF αποθηκεύτηκε!", description: `Το αρχείο "${filename}" λήφθηκε επιτυχώς.` });
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Σφάλμα εξαγωγής PDF", description: "Παρακαλώ δοκιμάστε ξανά", variant: "destructive" });
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -222,11 +614,7 @@ export default function PermitChecklist() {
                         <FormItem className="flex items-center justify-between">
                           <FormLabel className="text-xs font-normal cursor-pointer">{item.label}</FormLabel>
                           <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                              data-testid={`switch-${item.name}`}
-                            />
+                            <Switch checked={field.value} onCheckedChange={field.onChange} data-testid={`switch-${item.name}`} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -255,14 +643,7 @@ export default function PermitChecklist() {
               Συμπληρώστε τα στοιχεία του έργου σας για να δημιουργήσετε εξατομικευμένη λίστα εγγράφων για οικοδομική άδεια.
             </p>
             <div className="grid grid-cols-2 gap-3 text-xs max-w-sm w-full">
-              {[
-                "Τοπογραφικά & τίτλοι",
-                "Αρχιτεκτονικές μελέτες",
-                "Στατική μελέτη",
-                "Η/Μ εγκαταστάσεις",
-                "Ενεργειακή μελέτη",
-                "Ειδικές εγκρίσεις",
-              ].map((item) => (
+              {["Τοπογραφικά & τίτλοι", "Αρχιτεκτονικές μελέτες", "Στατική μελέτη", "Η/Μ εγκαταστάσεις", "Ενεργειακή μελέτη", "Ειδικές εγκρίσεις"].map((item) => (
                 <div key={item} className="flex items-center gap-2 p-2 rounded-md bg-card border border-card-border">
                   <FileText className="w-3 h-3 text-primary shrink-0" />
                   <span className="text-muted-foreground">{item}</span>
@@ -282,21 +663,35 @@ export default function PermitChecklist() {
         {checklist && !loading && (
           <Card className="h-full flex flex-col">
             <CardHeader className="pb-3 shrink-0">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <CardTitle className="text-base">Κατάλογος Δικαιολογητικών</CardTitle>
                   <CardDescription className="text-xs mt-1">Βάσει Ν. 4495/2017 και ισχύουσων διατάξεων</CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary">Εξατομικευμένο</Badge>
-                  <Button variant="outline" size="sm" onClick={() => setChecklist(null)} data-testid="button-reset-checklist">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleExportPDF}
+                    disabled={exporting}
+                    className="gap-2"
+                    data-testid="button-export-pdf"
+                  >
+                    {exporting
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Download className="w-3.5 h-3.5" />
+                    }
+                    {exporting ? "Εξαγωγή..." : "Εξαγωγή PDF"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setChecklist(null); setProjectSummary(null); form.reset(); }} data-testid="button-reset-checklist">
                     Νέα Λίστα
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <Separator />
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1" ref={pdfContainerRef}>
               <CardContent className="p-4 space-y-0.5">
                 {formatChecklist(checklist)}
               </CardContent>
