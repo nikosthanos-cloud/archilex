@@ -21,6 +21,20 @@ export const users = pgTable("users", {
   specialty: text("specialty"),
   role: text("role").notNull().default("user"),
   lastLoginAt: timestamp("last_login_at"),
+  // New fields
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerificationToken: text("email_verification_token"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+});
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
 export const questions = pgTable("questions", {
@@ -108,6 +122,17 @@ export const insertProjectNoteSchema = z.object({
   content: z.string().min(1, "Εισάγετε σημείωση"),
 });
 
+export const payments = pgTable("payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  stripePaymentId: text("stripe_payment_id"),
+  plan: text("plan"),
+  amount: integer("amount"),
+  currency: text("currency").default("eur"),
+  status: text("status"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type User = typeof users.$inferSelect;
@@ -117,3 +142,6 @@ export type Upload = typeof uploads.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type ProjectNote = typeof projectNotes.$inferSelect;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type Payment = typeof payments.$inferSelect;
+

@@ -80,7 +80,12 @@ export default function Login() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Κωδικός</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Κωδικός</FormLabel>
+                        <Link href="/forgot-password">
+                          <a className="text-xs text-primary hover:underline">Ξεχάσατε τον κωδικό;</a>
+                        </Link>
+                      </div>
                       <FormControl>
                         <Input type="password" placeholder="••••••••" data-testid="input-password" {...field} />
                       </FormControl>

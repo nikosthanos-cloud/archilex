@@ -56,6 +56,10 @@ export default function Register() {
         return;
       }
       await refreshUser();
+      toast({
+        title: "Επιτυχής εγγραφή",
+        description: "Έχουμε στείλει ένα email επαλήθευσης. Παρακαλούμε ελέγξτε τα εισερχόμενά σας.",
+      });
       setLocation("/dashboard");
     } catch {
       toast({ title: "Σφάλμα σύνδεσης", description: "Παρακαλώ δοκιμάστε ξανά", variant: "destructive" });

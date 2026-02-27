@@ -157,20 +157,32 @@ export default function Dashboard() {
 
   const upgradeMutation = useMutation({
     mutationFn: async (plan: string) => {
-      const res = await apiRequest("POST", "/api/subscription/upgrade", { plan });
+      const res = await apiRequest("POST", "/api/subscription/create-checkout", { plan });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      return data.user;
+      return data.url;
     },
-    onSuccess: (_data, plan) => {
-      refreshUser();
-      setShowUpgradeDialog(false);
-      toast({ title: "Αναβάθμιση επιτυχής!", description: `Μεταβήκατε στο πλάνο ${PLAN_LABELS[plan] || plan}.` });
+    onSuccess: (url) => {
+      window.location.href = url;
     },
     onError: (err: any) => {
       toast({ title: "Σφάλμα", description: err.message, variant: "destructive" });
     },
   });
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const status = searchParams.get("status");
+    if (status === "success") {
+      toast({ title: "Επιτυχία!", description: "Η αναβάθμιση του πλάνου σας ολοκληρώθηκε." });
+      refreshUser();
+      // Remove query param
+      window.history.replaceState({}, "", "/dashboard");
+    } else if (status === "cancel") {
+      toast({ title: "Ακύρωση", description: "Η διαδικασία πληρωμής ακυρώθηκε." });
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [toast, refreshUser]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -295,18 +307,31 @@ export default function Dashboard() {
         </Sidebar>
 
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-background shrink-0">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <h1 className="font-semibold text-sm">{activeNavLabel}</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              {!isLimitedPlan && (
-                <Badge className="gap-1" data-testid="badge-plan-header">
-                  <Crown className="w-3 h-3" />
-                  {planLabel}
-                </Badge>
-              )}
+          <header className="flex flex-col border-b border-border bg-background shrink-0">
+            {user && !user.emailVerified && (
+              <div className="bg-amber-50 border-b border-amber-100 px-4 py-2 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-800 text-xs font-medium">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>Παρακαλούμε επαληθεύστε το email σας για πλήρη πρόσβαση στις λειτουργίες.</span>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-amber-800 hover:bg-amber-100" onClick={() => toast({ title: "Πληροφορία", description: "Έχει σταλεί email επαλήθευσης κατά την εγγραφή." })}>
+                  Επανεκτέλεση
+                </Button>
+              </div>
+            )}
+            <div className="h-14 flex items-center justify-between px-4">
+              <div className="flex items-center gap-3">
+                <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <h1 className="font-semibold text-sm">{activeNavLabel}</h1>
+              </div>
+              <div className="flex items-center gap-2">
+                {!isLimitedPlan && (
+                  <Badge className="gap-1" data-testid="badge-plan-header">
+                    <Crown className="w-3 h-3" />
+                    {planLabel}
+                  </Badge>
+                )}
+              </div>
             </div>
           </header>
 

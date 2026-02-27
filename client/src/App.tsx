@@ -11,6 +11,9 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
+import VerifyEmail from "@/pages/VerifyEmail";
 import NotFound from "@/pages/not-found";
 
 function LoadingSpinner() {
@@ -49,6 +52,9 @@ function Router() {
       <Route path="/" component={() => <PublicRoute component={Landing} />} />
       <Route path="/login" component={() => <PublicRoute component={Login} />} />
       <Route path="/register" component={() => <PublicRoute component={Register} />} />
+      <Route path="/forgot-password" component={() => <PublicRoute component={ForgotPassword} />} />
+      <Route path="/reset-password" component={() => <PublicRoute component={ResetPassword} />} />
+      <Route path="/verify-email" component={VerifyEmail} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
       <Route component={NotFound} />

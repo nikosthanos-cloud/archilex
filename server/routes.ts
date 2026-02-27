@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -9,6 +9,9 @@ import { askClaude, analyzeBlueprintImage, analyzeBlueprintPDF, generatePermitCh
 import { insertUserSchema, loginSchema, insertQuestionSchema, insertProjectSchema, insertProjectNoteSchema, updateProfileSchema } from "@shared/schema";
 import { ZodError, z } from "zod";
 import { Pool } from "pg";
+import crypto from "crypto";
+import { sendEmail, emailTemplates } from "./email";
+import { stripe, createCheckoutSession, cancelSubscription } from "./stripe";
 
 const PgSession = connectPgSimple(session);
 
@@ -66,15 +69,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const lastReset = new Date(user.lastResetDate);
     const sameMonth = now.getMonth() === lastReset.getMonth() && now.getFullYear() === lastReset.getFullYear();
     const currentCount = sameMonth ? user.usesThisMonth : 0;
+
     if (currentCount >= limit) {
       const planNames: Record<string, string> = { free: "Δωρεάν", starter: "Starter", professional: "Professional" };
       res.status(403).json({
         error: `Έχετε εξαντλήσει το μηνιαίο όριο των ${limit} χρήσεων (πλάνο ${planNames[user.plan] || user.plan}). Αναβαθμίστε για περισσότερες χρήσεις.`,
         limitReached: true,
       });
+      // Send 100% notification if not already sent this month? 
+      // Simplified: just send it once when they hit it.
+      if (currentCount === limit) {
+        sendEmail({
+          to: user.email,
+          ...emailTemplates.usageLimitReached(limit)
+        }).catch(console.error);
+      }
       return false;
     }
-    await storage.incrementUsageCount(userId);
+
+    const updatedUser = await storage.incrementUsageCount(userId);
+
+    // Check for 80% threshold
+    if (limit && updatedUser.usesThisMonth === Math.floor(limit * 0.8)) {
+      sendEmail({
+        to: user.email,
+        ...emailTemplates.usageWarning80(updatedUser.usesThisMonth, limit)
+      }).catch(console.error);
+    }
+
     return true;
   }
 
@@ -85,7 +107,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getUserByEmail(data.email);
       if (existing) return res.status(400).json({ error: "Το email χρησιμοποιείται ήδη" });
       const hashedPassword = await bcrypt.hash(data.password, 12);
-      const user = await storage.createUser({ ...data, password: hashedPassword });
+      const verificationToken = crypto.randomBytes(32).toString("hex");
+
+      const user = await storage.createUser({
+        ...data,
+        password: hashedPassword,
+        emailVerificationToken: verificationToken
+      });
+
+      // Send verification email
+      sendEmail({
+        to: user.email,
+        ...emailTemplates.verification(verificationToken)
+      }).catch(console.error);
+
       req.session.userId = user.id;
       const { password: _, ...safeUser } = user;
       res.json({ user: safeUser });
@@ -94,6 +129,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error(err);
       res.status(500).json({ error: "Σφάλμα κατά την εγγραφή" });
     }
+  });
+
+  app.get("/api/auth/verify-email", async (req, res) => {
+    const token = req.query.token as string;
+    if (!token) return res.status(400).json({ error: "Λείπει το token επαλήθευσης" });
+
+    const user = await storage.verifyEmail(token);
+    if (!user) return res.status(400).json({ error: "Μη έγκυρο ή ληγμένο token" });
+
+    res.json({ success: true, message: "Το email επαληθεύτηκε με επιτυχία" });
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    const user = await storage.getUserByEmail(email);
+    if (!user) return res.json({ success: true }); // Silent for security
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+
+    await storage.createPasswordResetToken(user.id, token, expiresAt);
+
+    sendEmail({
+      to: user.email,
+      ...emailTemplates.passwordReset(token)
+    }).catch(console.error);
+
+    res.json({ success: true });
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: "Λείπουν στοιχεία" });
+
+    const tokenData = await storage.getPasswordResetToken(token);
+    if (!tokenData || tokenData.used || new Date(tokenData.expiresAt) < new Date()) {
+      return res.status(400).json({ error: "Το token είναι άκυρο ή έχει λήξει" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    await storage.updatePassword(tokenData.userId, hashedPassword);
+    await storage.usePasswordResetToken(tokenData.id);
+
+    res.json({ success: true, message: "Ο κωδικός ενημερώθηκε" });
   });
 
   app.post("/api/auth/login", async (req, res) => {
@@ -124,7 +203,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/auth/me", async (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: "Δεν είστε συνδεδεμένοι" });
     const user = await storage.getUser(req.session.userId);
-    if (!user) { req.session.destroy(() => {}); return res.status(401).json({ error: "Χρήστης δεν βρέθηκε" }); }
+    if (!user) { req.session.destroy(() => { }); return res.status(401).json({ error: "Χρήστης δεν βρέθηκε" }); }
     const { password: _, ...safeUser } = user;
     res.json({ user: safeUser });
   });
@@ -373,16 +452,141 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // ── Subscription ──────────────────────────────────────────────────────
-  app.post("/api/subscription/upgrade", requireAuth, async (req, res) => {
-    const { plan } = req.body;
-    const validPlans = ["starter", "professional", "unlimited"];
-    if (!validPlans.includes(plan)) {
-      return res.status(400).json({ error: "Μη έγκυρο πλάνο" });
+  app.patch("/api/admin/users/:id/plan", requireAdmin, async (req, res) => {
+    try {
+      const { plan } = req.body;
+      const userId = String(req.params.id);
+      const updated = await storage.updateUserPlan(userId, plan);
+      const { password: _, ...safeUser } = updated;
+      res.json({ user: safeUser });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά την αλλαγή πλάνου" });
     }
-    const user = await storage.updateUserPlan(req.session.userId!, plan);
-    const { password: _, ...safeUser } = user;
-    res.json({ user: safeUser });
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = String(req.params.id);
+      await storage.deleteUser(userId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά τη διαγραφή χρήστη" });
+    }
+  });
+
+  app.get("/api/admin/users/:id/questions", requireAdmin, async (req, res) => {
+    try {
+      const userId = String(req.params.id);
+      const questions = await storage.getUserQuestions(userId);
+      res.json({ questions });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά τη φόρτωση ιστορικού" });
+    }
+  });
+
+  app.get("/api/admin/payments", requireAdmin, async (req, res) => {
+    try {
+      const payments = await storage.getAllPayments();
+      res.json({ payments });
+    } catch (err) {
+      res.status(500).json({ error: "Σφάλμα κατά τη φόρτωση πληρωμών" });
+    }
+  });
+
+  // ── Subscription ──────────────────────────────────────────────────────
+  app.post("/api/subscription/create-checkout", requireAuth, async (req, res) => {
+    try {
+      const { plan } = req.body;
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) return res.status(401).json({ error: "Χρήστης δεν βρέθηκε" });
+
+      const session = await createCheckoutSession(user.id, user.email, plan);
+      res.json({ url: session.url });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/subscription/cancel", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      if (!user?.stripeSubscriptionId) return res.status(400).json({ error: "Δεν βρέθηκε ενεργή συνδρομή" });
+
+      await cancelSubscription(user.stripeSubscriptionId);
+      await storage.updateUserPlan(user.id, "free");
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Stripe Webhook (Raw body required)
+  app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+    const sig = req.headers["stripe-signature"] as string;
+    let event;
+
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    } catch (err: any) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as any;
+      const userId = session.client_reference_id;
+      const plan = session.metadata.plan;
+      const customerId = session.customer;
+      const subscriptionId = session.subscription;
+      const amount = session.amount_total;
+
+      if (userId && plan) {
+        await storage.updateUserSubscription(userId, customerId, subscriptionId, plan);
+
+        // Save payment to DB
+        await storage.createPayment({
+          userId,
+          stripePaymentId: session.payment_intent || session.id,
+          plan,
+          amount: amount || 0,
+          status: "completed"
+        });
+
+        const user = await storage.getUser(userId);
+        if (user) {
+          sendEmail({
+            to: user.email,
+            ...emailTemplates.upgradeSuccess(plan)
+          }).catch(console.error);
+        }
+      }
+    }
+
+    res.json({ received: true });
+  });
+
+  // Helper for periodic tasks (can be triggered by a CRON or simple endpoint)
+  app.post("/api/system/check-reminders", async (req, res) => {
+    // Check project deadlines (3 days away)
+    const allProjects = await storage.getAllProjects();
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+    for (const project of allProjects) {
+      if (project.deadline) {
+        const deadline = new Date(project.deadline);
+        // Simple check for within 3 days and not already past
+        if (deadline > now && deadline <= threeDaysFromNow) {
+          const user = await storage.getUser(project.userId);
+          if (user) {
+            sendEmail({
+              to: user.email,
+              ...emailTemplates.deadlineReminder(project.name, 3)
+            }).catch(console.error);
+          }
+        }
+      }
+    }
+    res.json({ ok: true });
   });
 
   return httpServer;
