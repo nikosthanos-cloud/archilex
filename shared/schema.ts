@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -133,6 +133,12 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+export const session = pgTable("session", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 export type User = typeof users.$inferSelect;
@@ -144,4 +150,5 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 export type ProjectNote = typeof projectNotes.$inferSelect;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type Session = typeof session.$inferSelect;
 
